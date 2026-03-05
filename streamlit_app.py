@@ -38,6 +38,8 @@ if 'scraper' not in st.session_state:
     st.session_state.scraper = KeibaLabScraper()
 if 'analysis_results' not in st.session_state:
     st.session_state.analysis_results = {}
+if 'user_marks' not in st.session_state:
+    st.session_state.user_marks = {} # race_id -> {horse_number: mark}
 
 def get_mark(rank):
     marks = {1: "◎", 2: "○", 3: "▲", 4: "△", 5: "☆", 6: "×"}
@@ -170,14 +172,23 @@ else:
             all_horses = analysis.get('full_results', [])
             if all_horses:
                 df_data = []
+                # セッション状態から最新の印を取得（初期化）
+                if race_id not in st.session_state.user_marks:
+                    st.session_state.user_marks[race_id] = {h.get('number'): h.get('expert_mark', '無') for h in all_horses}
+                
                 for h in all_horses:
                     # 前走情報の取得
                     last_run = h.get('last_run', {})
                     last_rank = last_run.get('rank', '-')
+                    num = h.get('number', 0)
+                    
+                    # ユーザー設定の印（なければAI印）
+                    current_mark = st.session_state.user_marks[race_id].get(num, h.get('expert_mark', '無'))
                     
                     df_data.append({
-                        "馬番": h.get('number', 0),
-                        "印": h.get('expert_mark', '無'),
+                        "馬番": num,
+                        "My印": current_mark,
+                        "AI印": h.get('expert_mark', '無'),
                         "馬名": h.get('name', ''),
                         "Ω指数": h.get('omega', 0),
                         "Ω順": h.get('omega_rank', '-'),
@@ -207,23 +218,30 @@ else:
                     })
                 df = pd.DataFrame(df_data)
                 
-                # スタイル適用（条件付き書式などは st.dataframe で制限があるが、背景色などは pandas styler で可能）
-                def highlight_omega(val):
-                    color = 'background-color: rgba(241, 196, 15, 0.2)' if val >= 80 else ''
-                    return color
-
-                # 表示
-                st.dataframe(
+                # 表示と編集
+                edited_df = st.data_editor(
                     df, 
                     use_container_width=True, 
                     hide_index=True,
                     column_config={
-                        "馬番": st.column_config.NumberColumn(width="small"),
-                        "印": st.column_config.TextColumn(width="small"),
-                        "馬名": st.column_config.TextColumn(width="medium"),
-                        "理由": st.column_config.TextColumn(width="large"),
-                    }
+                        "馬番": st.column_config.NumberColumn(width="small", pinned=True, disabled=True),
+                        "My印": st.column_config.SelectboxColumn(
+                            width="small", 
+                            pinned=True, 
+                            options=["◎", "○", "▲", "△", "☆", "×", "無"]
+                        ),
+                        "AI印": st.column_config.TextColumn(width="small", disabled=True),
+                        "馬名": st.column_config.TextColumn(width="medium", disabled=True),
+                        "点数": st.column_config.NumberColumn(disabled=True),
+                        "理由": st.column_config.TextColumn(width="large", disabled=True),
+                    },
+                    key=f"editor_{race_id}"
                 )
+                
+                # 編集内容をセッション状態に保存
+                if edited_df is not None:
+                    new_marks = {row["馬番"]: row["My印"] for _, row in edited_df.iterrows()}
+                    st.session_state.user_marks[race_id] = new_marks
 
             # 展開予想・買い目
             st.divider()
