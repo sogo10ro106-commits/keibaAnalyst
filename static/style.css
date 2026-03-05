@@ -1,0 +1,658 @@
+/* Keiba Lab Scraper - Simple Style */
+
+:root {
+    --bg-dark: #121212;
+    --bg-card: #1e1e1e;
+    --border-color: #333;
+    --text-primary: #e0e0e0;
+    --text-secondary: #aaaaaa;
+    --accent-blue: #4fc3f7;
+    /* Brighter blue for visibility */
+    --accent-gold: #ffc107;
+    --accent-red: #f44336;
+    --accent-green: #4caf50;
+    --accent-gray: #757575;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    margin: 0;
+    padding: 20px;
+    line-height: 1.4;
+}
+
+a {
+    color: var(--accent-blue);
+    text-decoration: underline;
+    transition: opacity 0.2s;
+}
+
+a:hover {
+    opacity: 0.8;
+}
+
+.container {
+    max-width: 1300px;
+    margin: 0 auto;
+}
+
+header {
+    border-bottom: 2px solid var(--accent-blue);
+    margin-bottom: 20px;
+    padding-bottom: 5px;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--accent-blue);
+}
+
+header p {
+    margin: 5px 0 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 15px;
+}
+
+/* Controls */
+.input-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 15px;
+}
+
+input[type="date"],
+input[type="text"] {
+    padding: 8px 12px;
+    background-color: #333;
+    border: 1px solid var(--accent-blue);
+    color: white;
+    border-radius: 4px;
+    font-size: 1rem;
+    outline: none;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+}
+
+button {
+    padding: 6px 14px;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.primary-btn {
+    background-color: var(--accent-blue);
+    color: white;
+}
+
+.secondary-btn {
+    background-color: var(--accent-gray);
+    color: white;
+}
+
+.optimize-btn {
+    background-color: #673ab7;
+    color: white;
+}
+
+/* Grid Layout */
+.grid-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+}
+
+/* Horizontal Layouts */
+.pickup-horizontal-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.pickup-section {
+    flex: 1;
+    min-width: 300px;
+}
+
+.pickup-list-horizontal {
+    display: flex;
+    overflow-x: auto;
+    gap: 10px;
+    padding-bottom: 5px;
+}
+
+.pickup-list-horizontal::-webkit-scrollbar {
+    height: 4px;
+}
+
+.pickup-list-horizontal::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 2px;
+}
+
+.pickup-card-horizontal {
+    flex: 0 0 160px;
+    background-color: #2c2c2c;
+    border: 1px solid var(--border-color);
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.pickup-title {
+    font-weight: bold;
+    color: var(--accent-gold);
+    display: flex;
+    justify-content: space-between;
+}
+
+.pickup-time {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.pickup-section h3 {
+    margin-top: 0;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+}
+
+.pickup-name {
+    font-size: 0.75rem;
+    color: var(--accent-gold);
+    margin-left: 5px;
+    font-weight: normal;
+}
+
+.pickup-reason {
+    margin-top: 4px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.venue-group-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.venue-label-side {
+    width: 60px;
+    font-weight: bold;
+    color: var(--accent-gold);
+    border-right: 2px solid var(--accent-gold);
+}
+
+.venue-races-horizontal {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex: 1;
+}
+
+.race-card-mini {
+    background-color: #2c2c2c;
+    border: 1px solid var(--border-color);
+    padding: 4px 6px;
+    border-radius: 4px;
+    text-align: left;
+    cursor: pointer;
+    min-width: 140px;
+    max-width: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.2;
+}
+
+.race-card-mini.selected {
+    border: 1px solid var(--accent-gold);
+    background-color: #3d3d3d;
+}
+
+.mini-row1 {
+    font-weight: bold;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.mini-race-name {
+    font-size: 0.75rem;
+    color: var(--accent-gold);
+    margin-left: 4px;
+    font-weight: normal;
+}
+
+.mini-row2 {
+    display: flex;
+    gap: 8px;
+    font-size: 0.75rem;
+}
+
+.mini-time {
+    color: #fff;
+    font-weight: bold;
+}
+
+.mini-surface {
+    color: var(--text-secondary);
+}
+
+.mini-row3 {
+    font-size: 0.7rem;
+    color: #aaa;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Analysis Table */
+.analysis-table-container {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: 75vh;
+    margin-top: 10px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.analysis-table th,
+.analysis-table td {
+    box-sizing: border-box;
+    overflow: hidden;
+    word-break: break-all;
+}
+
+th {
+    background-color: #252525;
+    color: var(--text-secondary);
+    text-align: left;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+td {
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+}
+
+/* Sticky Headers & Columns */
+.analysis-table th.sticky-col {
+    z-index: 15;
+}
+
+td.sticky-col {
+    position: sticky;
+    z-index: 5;
+    background-color: var(--bg-card);
+}
+
+/* Ensure transparent backgrounds blend with solid colors to hide scrolling content */
+td.sticky-col.bg-red {
+    background: linear-gradient(rgba(244, 67, 54, 0.3), rgba(244, 67, 54, 0.3)), var(--bg-card);
+}
+
+td.sticky-col.bg-yellow {
+    background: linear-gradient(rgba(255, 193, 7, 0.3), rgba(255, 193, 7, 0.3)), var(--bg-card);
+}
+
+td.sticky-col.bg-blue {
+    background: linear-gradient(rgba(33, 150, 243, 0.3), rgba(33, 150, 243, 0.3)), var(--bg-card);
+}
+
+td.sticky-col.bg-gray {
+    background: linear-gradient(rgba(117, 117, 117, 0.3), rgba(117, 117, 117, 0.3)), var(--bg-card);
+}
+
+td.sticky-col.bg-cyan {
+    background: linear-gradient(rgba(0, 188, 212, 0.3), rgba(0, 188, 212, 0.3)), var(--bg-card);
+}
+
+/* Fixed sticky left positioned columns */
+.sticky-col-1 {
+    left: 0;
+}
+
+.sticky-col-2 {
+    left: 50px;
+}
+
+.sticky-col-3 {
+    left: 90px;
+}
+
+.sticky-col-4 {
+    left: 250px;
+}
+
+.sticky-col-5 {
+    left: 310px;
+}
+
+.sticky-col-6 {
+    left: 450px;
+}
+
+.sticky-col-7 {
+    left: 610px;
+}
+
+/* Feedback Button */
+.feedback-container {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #1a2a3a;
+    border: 2px solid #2a4a6a;
+    border-radius: 8px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.feedback-container h3 {
+    margin-top: 0;
+    color: var(--accent-blue);
+    font-size: 1.1rem;
+    margin-bottom: 15px;
+}
+
+.feedback-btn {
+    background-color: #2ecc71;
+    color: white;
+    padding: 10px 20px;
+    font-size: 1rem;
+    transition: background 0.3s;
+}
+
+.feedback-btn:hover {
+    background-color: #27ae60;
+}
+
+.feedback-status {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    color: #2ecc71;
+}
+
+.col-mark {
+    width: 50px;
+    min-width: 50px;
+    max-width: 50px;
+    text-align: center;
+}
+
+.col-num {
+    width: 40px;
+    min-width: 40px;
+    max-width: 40px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.col-name {
+    width: 160px;
+    min-width: 160px;
+    max-width: 160px;
+}
+
+.col-weight {
+    width: 60px;
+    min-width: 60px;
+    max-width: 60px;
+    text-align: center;
+}
+
+.col-eval {
+    width: 140px;
+    min-width: 140px;
+    max-width: 140px;
+}
+
+.col-perf {
+    width: 160px;
+    min-width: 160px;
+    max-width: 160px;
+}
+
+.col-eval2 {
+    width: 70px;
+    min-width: 70px;
+    max-width: 70px;
+    text-align: center;
+}
+
+.horse-link a {
+    color: var(--accent-blue);
+    text-decoration: underline;
+    font-weight: bold;
+}
+
+.link-url {
+    color: var(--accent-blue);
+    word-break: break-all;
+    text-decoration: underline;
+}
+
+.horse-subinfo {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+/* Colors */
+.bg-red {
+    background-color: rgba(244, 67, 54, 0.3);
+}
+
+.bg-yellow {
+    background-color: rgba(255, 193, 7, 0.3);
+}
+
+.bg-blue {
+    background-color: rgba(33, 150, 243, 0.3);
+}
+
+.bg-gray {
+    background-color: rgba(117, 117, 117, 0.3);
+}
+
+.bg-cyan {
+    background-color: rgba(0, 188, 212, 0.3);
+}
+
+/* Logic Cards (Recommendations, etc.) */
+.cards-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.recommend-card,
+.himo-card,
+.discouraged-card {
+    flex: 1 1 280px;
+    border-radius: 4px;
+    padding: 12px;
+}
+
+.mark-badge {
+    background: #333;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.8rem;
+}
+
+.card-title {
+    font-weight: bold;
+    margin-bottom: 8px;
+    font-size: 1rem;
+}
+
+.card-content {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+/* Pace */
+.pace-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.pace-high {
+    background-color: var(--accent-red);
+    color: white;
+}
+
+.pace-mid {
+    background-color: var(--accent-gold);
+    color: black;
+}
+
+.pace-low {
+    background-color: var(--accent-blue);
+    color: white;
+}
+
+.pace-breakdown {
+    display: flex;
+    gap: 15px;
+    font-size: 0.9rem;
+    margin: 10px 0;
+}
+
+/* Utilities */
+.hidden {
+    display: none !important;
+}
+
+.premium-loader {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #555;
+    border-top-color: var(--accent-blue);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Mark Select */
+.mark-select {
+    background: #444;
+    color: white;
+    border: none;
+    padding: 2px;
+    border-radius: 2px;
+}
+
+/* Premium Loading Overlay */
+.premium-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(18, 18, 18, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    border-radius: 4px;
+}
+
+.loader-content {
+    text-align: center;
+}
+
+#loadingText {
+    margin-top: 10px;
+    font-weight: bold;
+    color: var(--accent-blue);
+    font-size: 1rem;
+}
+
+#raceListOfDay {
+    position: relative;
+    min-height: 100px;
+}
+
+/* Other Horses Section */
+.other-horses-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.other-horse-card {
+    flex: 1 1 280px;
+    padding: 12px;
+    border-radius: 4px;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+}
+
+/* Discouraged grid adjustment */
+.discouraged-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.text-danger {
+    color: #f44336 !important;
+}
+
+.text-info {
+    color: #4fc3f7 !important;
+}
+
+.text-muted {
+    color: #888 !important;
+}

@@ -337,17 +337,26 @@
                     <div class="section-header">
                         <h2 class="section-title" style="color: var(--accent-gold);"><i data-lucide="banknote"></i>
                             具体的買い目戦略</h2>
-                    </div>
-                    <div id="strategy-content" class="strategy-content"></div>
+                        <div id="strategy-content" class="strategy-content"></div>
                 </section>
 
                 <!-- Discouraged Horses (3頭のみ) -->
-                <section id="discouraged-section" class="hidden card">
-                    <div class="section-header">
-                        <h2 class="section-title" style="color: var(--text-secondary);"><i
-                                data-lucide="trending-down"></i> 消し馬（来る確率が低い3頭）</h2>
-                    </div>
-                    <div id="discouraged-cards" class="cards-grid"></div>
+                <!-- 消し馬セクション -->
+                <section id="discouraged-section" class="discouraged-section hidden card" style="margin-top: 25px;">
+                    <h3
+                        style="color: #e74c3c; border-bottom: 2px solid #e74c3c; display: flex; align-items: center; gap: 10px;">
+                        <i data-lucide="skull"></i> ❌ 消し馬 (除外推奨3頭)
+                    </h3>
+                    <div id="discouraged-cards" class="discouraged-grid"></div>
+                </section>
+
+                <!-- その他の有力馬セクション (NEW) -->
+                <section id="other-horses-section" class="other-horses-section hidden card" style="margin-top: 25px;">
+                    <h3
+                        style="color: #3498db; border-bottom: 2px solid #3498db; display: flex; align-items: center; gap: 10px;">
+                        <i data-lucide="zoom-in"></i> 🔍 その他の有力馬・伏兵
+                    </h3>
+                    <div id="other-horses-cards" class="other-horses-grid"></div>
                 </section>
             </div>
 
@@ -1297,6 +1306,7 @@
                     renderRecommendations(analysis.recommendations, analysis.confidence);
                     renderHimo(analysis.himo_horses);
                     renderDiscouraged(analysis.discouraged);
+                    renderOtherHorses(analysis.other_horses);
                     renderStrategies(analysis.betting_strategies);
                 }
                 document.getElementById('analysisResult').classList.remove('hidden');
@@ -1392,8 +1402,30 @@
                 card.innerHTML = `
                     <div class="card-title">${idx + 1}. ${rec.number}番 ${rec.name}</div>
                     <div class="card-content">
-                        <div class="reason-label">除外理由</div>
+                        <div class="reason-label text-danger">⚠️ 除外理由 (要注意)</div>
                         <p>${rec.reason}</p>
+                    </div>`;
+                container.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        function renderOtherHorses(other_horses) {
+            const section = document.getElementById('other-horses-section');
+            const container = document.getElementById('other-horses-cards');
+            container.innerHTML = '';
+            if (!other_horses || other_horses.length === 0) { section.classList.add('hidden'); return; }
+
+            section.classList.remove('hidden');
+            other_horses.forEach(h => {
+                const card = document.createElement('div');
+                card.className = 'other-horse-card card';
+                card.style.borderLeft = '4px solid #3498db';
+                card.innerHTML = `
+                    <div class="card-title">${h.number}番 ${h.name} <small class="text-muted">(期待スコア: ${h.score})</small></div>
+                    <div class="card-content">
+                        <div class="reason-label text-info">分析理由</div>
+                        <p style="font-size: 0.9em;">${h.reason}</p>
                     </div>`;
                 container.appendChild(card);
             });
