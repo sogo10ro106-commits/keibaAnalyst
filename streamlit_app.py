@@ -230,8 +230,8 @@ else:
                             pinned=True, 
                             options=["◎", "○", "▲", "△", "☆", "×", "無"]
                         ),
+                        "馬名": st.column_config.TextColumn(width="medium", pinned=True, disabled=True),
                         "AI印": st.column_config.TextColumn(width="small", disabled=True),
-                        "馬名": st.column_config.TextColumn(width="medium", disabled=True),
                         "点数": st.column_config.NumberColumn(disabled=True),
                         "理由": st.column_config.TextColumn(width="large", disabled=True),
                     },
@@ -242,6 +242,16 @@ else:
                 if edited_df is not None:
                     new_marks = {row["馬番"]: row["My印"] for _, row in edited_df.iterrows()}
                     st.session_state.user_marks[race_id] = new_marks
+
+            # --- その他の馬 (Other Horses) ---
+            st.divider()
+            st.markdown("### 🔍 その他の有力馬・伏兵")
+            others = analysis.get('other_horses', [])
+            if others:
+                # スコア順に表示
+                for h in others:
+                    with st.expander(f"{h['number']}番 {h['name']} (期待値スコア: {h['score']})"):
+                        st.write(f"**分析理由:** {h['reason']}")
 
             # 展開予想・買い目
             st.divider()

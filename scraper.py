@@ -2529,108 +2529,68 @@ class KeibaLabScraper:
         himo_ids = {h['number'] for h in himo_horses}
         excluded_ids_nums = rec_ids | himo_ids
         
-        other_horses = []
         for h in all_data:
-            if h['number'] not in excluded_ids_nums:
-                score, auto_reasons = self.get_total_score_with_reasons(h, race_info, feedback_data, mark_weight, optimized_params)
-                pop = h.get('popularity', 99)
-                p_score = h.get('total_score', 0)
+            # 各馬に対して具体的で詳細な「理由」を生成
+            score, auto_reasons = self.get_total_score_with_reasons(h, race_info, feedback_data, mark_weight, optimized_params)
+            h['detailed_reason'] = " / ".join(auto_reasons) if auto_reasons else h.get('performance_summary', '条件見合いで静観')
 
-                # 消し馬判定の徹底緩和：実績スコアの上限を引き上げ、より多くの馬を候補に入れる
-                if p_score >= 3.5: continue 
-                if h.get('expert_mark', '無') != '無': continue
-                
-                last_run = h.get('last_run', {})
-                last_rank = last_run.get('rank')
-                try: last_rank = int(last_rank) if last_rank is not None else 99
-                except: last_rank = 99
-
-                # 走数チェック：初出走（新馬）はデータ不足のため「消し」にはしない
-                total_runs = 0
-                try:
-                    all_rec = h.get('total_record', '0-0-0-0')
-                    total_runs = sum(map(int, re.findall(r'\d+', all_rec.split(' ')[0])))
-                except: pass
-
-                if total_runs == 0: continue # 新馬・未出走は除外
-
-                # 前走3着以内は激走リスクがあるため消さない
-                if last_rank <= 3: continue 
-                
-                # 芝/ダート適性の整合性チェック
-                cur_surface = race_info.get('surface', '')
-                last_surface = last_run.get('surface', '')
-                surface_mismatch = False
-                if cur_surface and last_surface and cur_surface != last_surface:
-                    s_rec = h.get('surface_record', '0-0-0-0')
-                    if s_rec.startswith('0-0-'): surface_mismatch = True
-
-                def has_top2_record(record_str):
-                    if not record_str or record_str == '0-0-0-0': return False
-                    try:
-                        base = str(record_str).split(' ')[0]
-                        parts = [int(p) for p in re.findall(r'\d+', base)]
-                        return any(p > 0 for p in parts[:2])
-                    except: return False
-
-                # ネガティブな理由のみを抽出するフィルタ
-                exclude_reasons = []
-                if surface_mismatch:
-                    exclude_reasons.append(f"今回の{cur_surface}実績に乏しく適性不安")
-                
-                if last_rank >= 10:
-                    exclude_reasons.append(f"前走{last_rank}着と大敗")
-                elif 4 <= last_rank <= 9:
-                    exclude_reasons.append("近走の精彩を欠く")
-                
-                if not has_top2_record(h.get('course_record')) and not has_top2_record(h.get('distance_record')):
-                    exclude_reasons.append("コース・距離実績に乏しい")
-                
-                # AIによる理由(auto_reasons)から、減点項目(マイナス表記)のみを抽出
-                negative_ai = []
-                for r in auto_reasons:
-                    if '(-' in r:
-                        # (-5) などの数値を消して理由として整形
-                        clean_r = re.sub(r'\(-?\d+\)', '', r).strip()
-                        negative_ai.append(f"{clean_r}等の不安")
-                
-                exclude_reasons.extend(negative_ai[:2])
-
-                # 理由がなくてもスコアが極端に低い場合は機械的に抽出対象とする
-                if not exclude_reasons:
-                    if p_score < 1.0:
-                        exclude_reasons.append("強調材料に乏しい")
-                    elif p_score < 2.5:
-                        exclude_reasons.append("目立った実績がなく静観妥当")
-                    else:
-                        continue
-
-                other_horses.append({
-                    'number': h['number'],
-                    'name': h['name'],
-                    'reason': " / ".join(exclude_reasons),
-                    'score': score,
-                    'p_score': p_score
-                })
+        # --- 激走期待馬 (軸3頭 + ヒモ5頭) 以外の「その他の馬」を抽出 ---
+        selected_numbers = {h['number'] for h in (recommendations + himo_horses)}
+        other_candidates = [h for h in all_data if h['number'] not in selected_numbers]
+        # スコア順にソート
+        other_candidates.sort(key=lambda x: self.get_total_score_with_reasons(x, race_info, feedback_data, mark_weight, optimized_params)[0], reverse=True)
         
-        # 不安要素が多い（期待値scoreが低い ＆ 実績スコアp_scoreが低い）順にソート
-        other_horses.sort(key=lambda x: (x['score'], x['p_score']))
-        # 確実に3頭選出（候補が3頭未満なら、除外された馬の中からスコアが低い順に補致する）
-        discouraged = other_horses[:3]
-        if len(discouraged) < 3 and len(all_data) > (len(recommendations) + len(himo_horses)):
-            # まだ枠がある場合は、未選定の馬からスコア順に追加
-            already_selected = {h['number'] for h in recommendations} | {h['number'] for h in himo_horses} | {h['number'] for h in discouraged}
-            remaining = sorted([h for h in all_data if h['number'] not in already_selected], 
-                               key=lambda x: self.get_total_score_with_reasons(x, race_info, feedback_data, mark_weight, optimized_params)[0])
-            for h in remaining:
-                if len(discouraged) >= 3: break
-                score, auto_reasons = self.get_total_score_with_reasons(h, race_info, feedback_data, mark_weight, optimized_params)
+        other_horses_list = []
+        for h in other_candidates:
+            score, _ = self.get_total_score_with_reasons(h, race_info, feedback_data, mark_weight, optimized_params)
+            other_horses_list.append({
+                'number': h['number'],
+                'name': h['name'],
+                'reason': h['detailed_reason'],
+                'score': score
+            })
+
+        # --- 消し馬（激走リスクの極めて低い馬を3頭厳選） ---
+        # スコアが低い順、かつ特定の消し条件に合致する馬
+        discouraged = []
+        # スコア逆順（低い順）にチェック
+        for h in reversed(other_candidates):
+            if len(discouraged) >= 3: break
+            
+            p_score = h.get('total_score', 0)
+            last_run = h.get('last_run', {})
+            last_rank = last_run.get('rank')
+            try: last_rank = int(last_rank) if last_rank is not None else 99
+            except: last_rank = 99
+            
+            # 消し判定を具体化するためのネガティブ要素抽出
+            neg_reasons = [r for r in h['detailed_reason'].split(' / ') if '(-' in r]
+            
+            # 消し馬としてふさわしいか判定（実績不足、大敗、適性不安など）
+            is_weak = p_score < 2.0 or last_rank >= 10
+            if is_weak:
+                # 理由をさらに具体的に構築
+                specific_neg = " / ".join([re.sub(r'\(.*?\)', '', r).strip() for r in neg_reasons[:2]])
+                base_neg = f"前走{last_rank}着と精彩欠く" if last_rank >= 10 else "強調材料に乏しい"
+                final_neg = f"{base_neg} ({specific_neg})" if specific_neg else base_neg
+                
                 discouraged.append({
                     'number': h['number'],
                     'name': h['name'],
-                    'reason': "強豪揃いで相対的な優位性乏しい" if not auto_reasons else " / ".join([re.sub(r'\(.*?\)', '', r) for r in auto_reasons if '(-' in r][:2]) or "実績条件面で強調材料なし",
-                    'score': score,
-                    'p_score': h.get('total_score', 0)
+                    'reason': final_neg,
+                    'score': h.get('score', 0)
+                })
+        
+        # もし3頭に満たない場合は、スコア最下位から補充
+        if len(discouraged) < 3:
+            for h in reversed(other_candidates):
+                if len(discouraged) >= 3: break
+                if any(d['number'] == h['number'] for d in discouraged): continue
+                discouraged.append({
+                    'number': h['number'],
+                    'name': h['name'],
+                    'reason': "実績面・条件面で他馬に劣り静観妥当",
+                    'score': 0
                 })
 
         # ---------------------------------------------------------
@@ -2674,6 +2634,7 @@ class KeibaLabScraper:
             'recommendations': recommendations,
             'himo_horses': himo_horses,
             'discouraged': discouraged,
+            'other_horses': other_horses_list, # 有力・消し以外のリスト
             'betting_strategies': betting_strategies,
             'strategy': strategy_text.strip() # Web版用
         }

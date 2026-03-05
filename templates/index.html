@@ -1,0 +1,2658 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keiba Lab Scraper | Race Prediction</title>
+    <!-- Favicon: ポップで可愛い馬の顔モチーフのSVG -->
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2248%22 fill=%22%23ff6b81%22 stroke=%22%23ff4757%22 stroke-width=%224%22/><path d=%22M 30,70 Q 30,30 50,30 Q 70,30 70,70 Q 50,85 30,70 Z%22 fill=%22%23f1f2f6%22/><path d=%22M 35,35 L 40,15 L 48,30 Z M 65,35 L 60,15 L 52,30 Z%22 fill=%22%23a4b0be%22/><circle cx=%2240%22 cy=%2245%22 r=%226%22 fill=%22%232f3542%22/><circle cx=%2260%22 cy=%2245%22 r=%226%22 fill=%22%232f3542%22/><circle cx=%2242%22 cy=%2243%22 r=%222%22 fill=%22%23ffffff%22/><circle cx=%2262%22 cy=%2243%22 r=%222%22 fill=%22%23ffffff%22/><path d=%22M 45,60 Q 50,65 55,60%22 fill=%22none%22 stroke=%22%23ff4757%22 stroke-width=%224%22 stroke-linecap=%22round%22/></svg>">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.1">
+    <!-- Load Lucide icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+    <div class="container">
+        <!-- グローバル読み込み中表示 -->
+        <div id="loading" class="hidden premium-loading-overlay" style="z-index: 9999;">
+            <div class="loader-content">
+                <div class="premium-loader"></div>
+                <div id="loadingText">処理中...</div>
+            </div>
+        </div>
+
+        <!-- アクセス制限警告バナー -->
+        <div id="protectionBanner" class="hidden"
+            style="background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3); border: 1px solid rgba(255,255,255,0.2);">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <i data-lucide="shield-alert" style="width: 32px; height: 32px; flex-shrink: 0;"></i>
+                <div style="flex: 1;">
+                    <div style="font-weight: bold; font-size: 1.1rem;">⚠ アクセス保護モードが作動中</div>
+                    <div style="font-size: 0.9rem; opacity: 0.9; margin-top: 4px;">
+                        短期間に連続した通信エラーを検知したため、IPブロックを避けるための安全装置が働いています。<br>
+                        しばらく（30分～1時間程度）時間を置いてから、下のボタンで解除してください。
+                    </div>
+                </div>
+                <button onclick="resetProtection()"
+                    style="flex-shrink: 0; background: rgba(255,255,255,0.2); color: white; border: 2px solid rgba(255,255,255,0.5); border-radius: 8px; padding: 10px 20px; cursor: pointer; font-weight: bold; font-size: 0.9rem; transition: all 0.3s;"
+                    onmouseover="this.style.background='rgba(255,255,255,0.35)'"
+                    onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                    🔓 保護モード解除
+                </button>
+            </div>
+        </div>
+        <header>
+            <h1>KEIBA LAB SCRAPER</h1>
+            <p>Race Data Analysis & Prediction Engine</p>
+        </header>
+
+        <section class="controls card">
+            <div class="input-group">
+                <label for="datePicker">開催日選択:</label>
+                <input type="date" id="datePicker" required>
+            </div>
+            <button onclick="fetchRaces()" class="primary-btn">レース一覧取得</button>
+            <button onclick="loadRecommendedRaces()" class="primary-btn"
+                style="background: linear-gradient(135deg, #f1c40f, #f39c12); color: #000; margin-left: 10px;">
+                <i data-lucide="trophy"></i> おすすめ激アツレースTOP5 抽出
+            </button>
+        </section>
+
+
+        <section class="accuracy-controls card">
+            <h3>AIパラメータ & 検証 (当日)</h3>
+            <div class="accuracy-buttons">
+                <button onclick="runBacktest()" class="secondary-btn">精度検証 (Backtest)</button>
+                <button onclick="runOptimization()" class="optimize-btn">AIパラメータ最適化</button>
+                <button onclick="verifyPredictions()" class="primary-btn"
+                    style="background: linear-gradient(135deg, #8e44ad, #9b59b6);">
+                    <i data-lucide="award"></i> 開催日の予想的中検証 (Hit Analysis)
+                </button>
+                <div style="margin-top: 10px; display: flex; align-items: center; gap: 15px; font-size: 0.9rem;">
+                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                        <input type="checkbox" id="forceRefresh" style="width: 16px; height: 16px;"> キャッシュをクリアして再検証
+                    </label>
+                    <button onclick="clearServerCache()" class="secondary-btn"
+                        style="padding: 4px 8px; font-size: 0.8rem; display: flex; align-items: center; gap: 4px;">
+                        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> 全キャッシュクリア
+                    </button>
+                    <button onclick="clearCacheBySelectedDate()" class="secondary-btn"
+                        style="padding: 4px 8px; font-size: 0.8rem; display: flex; align-items: center; gap: 4px; background: linear-gradient(135deg, #e67e22, #d35400);">
+                        <i data-lucide="calendar-x" style="width: 14px; height: 14px;"></i> この日のキャッシュ削除
+                    </button>
+                    <button onclick="openCacheManager()" class="secondary-btn"
+                        style="padding: 4px 8px; font-size: 0.8rem; display: flex; align-items: center; gap: 4px; background: linear-gradient(135deg, #2980b9, #3498db);">
+                        <i data-lucide="database" style="width: 14px; height: 14px;"></i> キャッシュ管理
+                    </button>
+                </div>
+            </div>
+            <div id="accuracySummary" class="hidden">
+                <div class="accuracy-grid" id="accuracyGrid"></div>
+                <div id="analysisReport" class="analysis-report hidden">
+                    <div class="analysis-title">分析のヒントと反省点</div>
+                    <ul id="analysisList"></ul>
+                </div>
+            </div>
+            <!-- 予想検証結果エリア -->
+            <div id="verificationResults" class="hidden"
+                style="margin-top: 20px; border-top: 2px solid rgba(255,255,255,0.1); padding-top: 20px;">
+                <h3><i data-lucide="bar-chart-3"></i> 指定日の的中検証結果</h3>
+                <div id="verificationStats" style="margin-bottom: 20px;"></div>
+                <div id="verificationTableContainer" class="analysis-table-container">
+                    <table class="analysis-table">
+                        <thead>
+                            <tr>
+                                <th>R</th>
+                                <th>会場</th>
+                                <th>レース名</th>
+                                <th>頭数</th>
+                                <th>的中</th>
+                                <th>配当</th>
+                                <th>結果 (1-3着)</th>
+                                <th>選定馬 (計8頭)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="verificationTableBody"></tbody>
+                    </table>
+                </div>
+                <div id="specialtyAnalysis"
+                    style="margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">
+                </div>
+            </div>
+        </section>
+
+        <!-- おすすめ激アツレースTOP5 -->
+        <section id="recommendedRacesSection" class="hidden card"
+            style="background: linear-gradient(145deg, rgba(30,20,50,0.9), rgba(20,25,45,0.95)); border: 1px solid rgba(241,196,15,0.3);">
+            <div
+                style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+                <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 1.3em;">🌟</span> おすすめ激アツレース TOP5
+                </h2>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <select id="venueFilter" onchange="loadRecommendedRaces()"
+                        style="padding: 6px 12px; border-radius: 8px; background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); font-size: 0.85rem;">
+                        <option value="">全会場</option>
+                    </select>
+                </div>
+            </div>
+            <div id="recommendedRacesLoading" class="hidden" style="text-align: center; padding: 30px; color: #aaa;">
+                <div class="spinner" style="margin: 0 auto 10px;"></div>
+                おすすめレースを分析中...
+            </div>
+            <div id="recommendedTotalSummary" class="hidden"
+                style="margin-bottom: 15px; padding: 12px 16px; border-radius: 10px; background: rgba(241,196,15,0.1); border: 1px solid rgba(241,196,15,0.3);">
+            </div>
+            <div id="recommendedRacesContainer"
+                style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;"></div>
+        </section>
+
+        <section id="raceListOfDay" class="hidden card">
+            <h2>本日のレース一覧</h2>
+            <div id="raceContainer"></div>
+            <div style="margin-top: 10px;">
+                <button class="secondary-btn" onclick="copyAllRaceUrls()">全てのURLをコピー</button>
+            </div>
+        </section>
+
+        <section id="raceDetails" class="hidden">
+            <div class="race-header card">
+                <h2 id="selectedRaceTitle"></h2>
+                <div id="raceContextInfo" class="race-context-info"></div>
+            </div>
+
+            <div class="details-grid">
+                <div class="card">
+                    <h3>外部リンク</h3>
+                    <ul id="detailsList" class="premium-list"></ul>
+                    <button class="secondary-btn" onclick="copyRaceUrls()">詳細URLを一括コピー</button>
+                </div>
+
+                <div id="horseListSection" class="hidden card">
+                    <h3>出走馬 (競走実績)</h3>
+                    <div id="horseListLoading" class="hidden">読込中...</div>
+                    <div class="analysis-table-container">
+                        <table id="horseListTable">
+                            <thead>
+                                <tr>
+                                    <th>馬番</th>
+                                    <th>馬名</th>
+                                    <th>履歴</th>
+                                    <th>データ</th>
+                                    <th>リンク</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button class="secondary-btn" onclick="copyAllHorseUrls()">全馬URLを一括コピー</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="analyze-controls card">
+                <h3>高度な解析を実行</h3>
+                <p>各馬の過去走、適正、騎手相性を総合的に解析します。</p>
+                <button onclick="analyzeRace()" class="primary-btn">分析開始 (Deep Analysis)</button>
+                <div id="analysisLoading" class="hidden">
+                    解析中...（約30～60秒かかります）
+                </div>
+            </div>
+
+            <div id="analysisResult" class="hidden">
+                <div id="pacePrediction" class="card"></div>
+
+                <section id="analysis-section" style="display:none;">
+                    <div id="inputExtraSection" class="card hidden"
+                        style="margin-bottom: 20px; border: 2px solid var(--accent-gold); background: rgba(241, 196, 15, 0.05);">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3 style="margin: 0; color: var(--accent-gold);"><i data-lucide="edit-3"></i> 外部情報の入力 & 再分析
+                            </h3>
+                            <div id="extraLastUpdated" style="font-size: 0.75rem; color: #888;"></div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px;">
+                            <div>
+                                <label style="font-weight: bold; display: block; margin-bottom: 5px;">📊 クッション値:</label>
+                                <input type="number" id="cushionVal" step="0.1" placeholder="例: 9.2"
+                                    class="premium-input" style="width: 100%; border-color: rgba(255,255,255,0.2);">
+                                <p style="font-size: 0.7rem; color: #888; margin-top: 5px;">※9.0未満でタフ馬場適性馬が評価されます。</p>
+                            </div>
+                            <div>
+                                <label style="font-weight: bold; display: block; margin-bottom: 5px;">🔗 調教URL一覧
+                                    (任意):</label>
+                                <textarea id="trainingUrl" rows="2" placeholder="調教動画のURLなどを入力（参考用）"
+                                    class="premium-input"
+                                    style="width: 100%; border-color: rgba(255,255,255,0.2); font-size: 0.8rem;"></textarea>
+                            </div>
+                        </div>
+                        <div style="margin-top: 15px; display: flex; gap: 10px;">
+                            <button onclick="analyzeRace(true)" class="optimize-btn"
+                                style="flex: 2; padding: 12px; font-weight: bold;">
+                                <i data-lucide="refresh-cw"></i> 最新情報で分析実行 (オッズ・馬体重・追加情報)
+                            </button>
+                            <button onclick="saveExtraInfo()" class="secondary-btn" style="flex: 1;">
+                                <i data-lucide="save"></i> 入力を保存
+                            </button>
+                        </div>
+                    </div>
+
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h2>分析結果サマリー</h2>
+                        <button onclick="copyTableToClipboard()" class="optimize-btn">分析表をコピー</button>
+                    </div>
+
+                    <div id="race-info-header" class="card"></div>
+
+                    <div class="analysis-table-header card-sub-title">
+                        <h3><i data-lucide="table"></i> 各馬の総合分析一覧</h3>
+                    </div>
+                    <div class="analysis-table-container">
+                        <table class="analysis-table" id="analysisTable">
+                            <thead>
+                                <tr>
+                                    <th class="col-mark sticky-col sticky-col-1">印</th>
+                                    <th class="col-num sticky-col sticky-col-2">馬番</th>
+                                    <th class="col-name sticky-col sticky-col-3">馬名 / 情報</th>
+                                    <th class="col-weight sticky-col sticky-col-4">馬体重</th>
+                                    <th class="col-eval sticky-col sticky-col-5">評価</th>
+                                    <th class="col-perf sticky-col sticky-col-6">実績集計</th>
+                                    <th class="col-eval2 sticky-col sticky-col-7">評価</th>
+                                    <th>推奨理由</th>
+                                    <th>Ω指数</th>
+                                    <th>Ωランク人気</th>
+                                    <th>単オッズ</th>
+                                    <th>人気順</th>
+                                    <th>バグ度</th>
+                                    <th>度外視要素</th>
+                                    <th>馬具</th>
+                                    <th>斤量変化</th>
+                                    <th>斤量成績</th>
+                                    <th>中週/実績</th>
+                                    <th>会場</th>
+                                    <th>回り</th>
+                                    <th>馬場</th>
+                                    <th>距離</th>
+                                    <th>芝ダ</th>
+                                    <th>持タイム</th>
+                                    <th>持3F</th>
+                                    <th>ペース</th>
+                                    <th>枠</th>
+                                    <th>騎手</th>
+                                    <th>季節</th>
+                                    <th>脚質</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Feedback Loop (2段階) -->
+                    <div id="feedback-section" class="feedback-container">
+                        <h3><i data-lucide="brain-circuit"></i> AI予測の精度向上（フィードバック）</h3>
+                        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 15px;">
+                            レース結果と予想を照合し、乖離（期待外れ・穴馬激走）をAIに学習させます。
+                        </p>
+                        <button class="feedback-btn" id="feedbackBtn" onclick="showRaceResult()">
+                            <i data-lucide="search"></i> 結果をフィードバック
+                        </button>
+                        <div id="feedbackResultArea" class="hidden" style="margin-top: 15px;"></div>
+                        <button class="feedback-btn hidden" id="confirmFeedbackBtn" onclick="confirmFeedback()"
+                            style="margin-top: 10px; background: linear-gradient(135deg, #27ae60, #2ecc71);">
+                            <i data-lucide="check-circle"></i> フィードバック完了（AIアルゴリズムに反映）
+                        </button>
+                        <div id="feedbackStatus" class="feedback-status hidden"></div>
+                    </div>
+                </section>
+
+                <!-- Notes -->
+                <div id="analysisNotes" class="card notes-card"></div>
+
+                <!-- Recommended Horses -->
+                <section id="recommendations-section" class="hidden card">
+                    <div class="section-header"
+                        style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                        <h2 class="section-title">軸馬候補（有力馬）</h2>
+                        <div id="raceConfidenceBadge"
+                            style="display: none; padding: 6px 16px; border-radius: 20px; font-size: 0.95rem; font-weight: bold; letter-spacing: 2px;">
+                        </div>
+                    </div>
+                    <div id="recommendation-cards" class="cards-grid"></div>
+                </section>
+
+                <!-- Himo Candidates -->
+                <section id="himo-section" class="hidden card">
+                    <div class="section-header">
+                        <h2 class="section-title"><i data-lucide="target"></i> ヒモ馬候補（3着候補）</h2>
+                    </div>
+                    <div id="himo-cards" class="cards-grid"></div>
+                </section>
+
+                <!-- Betting Strategy -->
+                <section id="strategy-section" class="hidden card strategy-card">
+                    <div class="section-header">
+                        <h2 class="section-title" style="color: var(--accent-gold);"><i data-lucide="banknote"></i>
+                            具体的買い目戦略</h2>
+                    </div>
+                    <div id="strategy-content" class="strategy-content"></div>
+                </section>
+
+                <!-- Discouraged Horses (3頭のみ) -->
+                <section id="discouraged-section" class="hidden card">
+                    <div class="section-header">
+                        <h2 class="section-title" style="color: var(--text-secondary);"><i
+                                data-lucide="trending-down"></i> 消し馬（来る確率が低い3頭）</h2>
+                    </div>
+                    <div id="discouraged-cards" class="cards-grid"></div>
+                </section>
+            </div>
+
+            <section class="card horse-search">
+                <h3>馬データ直接検索</h3>
+                <div class="input-group">
+                    <input type="text" id="horseIdInput" placeholder="馬ID入力 (例: 2018102040)">
+                    <button onclick="fetchHorseData()" class="secondary-btn">検索</button>
+                </div>
+                <div id="horseResults" class="hidden card-overlay"></div>
+            </section>
+        </section>
+        </main>
+
+        <!-- 期間検証セクション (最下部) -->
+        <section class="period-analysis card" style="margin-top: 40px; border-top: 4px solid var(--accent-gold);">
+            <h2 style="color: var(--accent-gold); margin-bottom: 20px;"><i data-lucide="calendar-range"></i> 期間指定 的中分析
+                (Period Analysis)</h2>
+
+            <div class="period-controls-grid"
+                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; background: rgba(255,255,255,0.03); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+                <div class="period-input-dates" style="display: flex; flex-direction: column; gap: 10px;">
+                    <label>分析期間:</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="date" id="startDate" class="premium-input">
+                        <span>〜</span>
+                        <input type="date" id="endDate" class="premium-input">
+                    </div>
+                    <small style="color: var(--text-secondary);">※期間が長い場合、検証に数分かかることがあります。</small>
+                </div>
+
+                <div class="period-input-search" style="display: flex; flex-direction: column; gap: 10px;">
+                    <label for="filterKeyword">検索ワード:</label>
+                    <input type="text" id="filterKeyword" placeholder="例: 障害、牝、G1、中山..." class="premium-input">
+                    <small style="color: var(--text-secondary);">レース名やクラス名をキーワードで絞り込みます。</small>
+                </div>
+            </div>
+
+            <div class="period-filters-detail"
+                style="background: rgba(255,255,255,0.03); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+                <h4 style="margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
+                    絞り込み条件</h4>
+                <div class="filter-rows" style="display: flex; flex-direction: column; gap: 20px;">
+                    <!-- 競馬場選択 -->
+                    <div class="filter-group">
+                        <label
+                            style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.85rem;">競馬場:</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px;" id="venueFilters">
+                            <label><input type="checkbox" id="v_all" onchange="toggleAllV(this)" checked> すべて</label>
+                            <label><input type="checkbox" name="p_venue" value="東京" checked> 東京</label>
+                            <label><input type="checkbox" name="p_venue" value="中山" checked> 中山</label>
+                            <label><input type="checkbox" name="p_venue" value="京都" checked> 京都</label>
+                            <label><input type="checkbox" name="p_venue" value="阪神" checked> 阪神</label>
+                            <label><input type="checkbox" name="p_venue" value="中京" checked> 中京</label>
+                            <label><input type="checkbox" name="p_venue" value="新潟" checked> 新潟</label>
+                            <label><input type="checkbox" name="p_venue" value="福島" checked> 福島</label>
+                            <label><input type="checkbox" name="p_venue" value="小倉" checked> 小倉</label>
+                            <label><input type="checkbox" name="p_venue" value="札幌" checked> 札幌</label>
+                            <label><input type="checkbox" name="p_venue" value="函館" checked> 函館</label>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; flex-wrap: wrap; gap: 30px;">
+                        <div class="filter-group">
+                            <label
+                                style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.85rem;">馬場:</label>
+                            <div style="display: flex; gap: 15px;">
+                                <label><input type="radio" name="p_surface" value="all" checked> すべて</label>
+                                <label><input type="radio" name="p_surface" value="turf"> 芝</label>
+                                <label><input type="radio" name="p_surface" value="dirt"> ダ</label>
+                                <label><input type="radio" name="p_surface" value="jump"> 障</label>
+                            </div>
+                        </div>
+                        <div class="filter-group">
+                            <label
+                                style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.85rem;">条件:</label>
+                            <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                                <label><input type="checkbox" id="p_filterShinba"> 新馬戦</label>
+                                <label><input type="checkbox" id="p_filterHandicap"> ハンデ戦</label>
+                                <label><input type="checkbox" id="p_filterGrade"> 重賞(G1-G3)</label>
+                                <label><input type="checkbox" id="p_filterMare"> 牝馬限定</label>
+                                <label><input type="checkbox" id="p_filterSpecial" onchange="toggleAllCond(this)"
+                                        checked> すべて</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- レース番号選択 -->
+                    <div class="filter-group">
+                        <label
+                            style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.85rem;">レース番号:</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px;" id="raceNumFilters">
+                            <label><input type="checkbox" id="r_all" onchange="toggleAllR(this)" checked> すべて</label>
+                            <label><input type="checkbox" name="p_race_num" value="1" checked> 1R</label>
+                            <label><input type="checkbox" name="p_race_num" value="2" checked> 2R</label>
+                            <label><input type="checkbox" name="p_race_num" value="3" checked> 3R</label>
+                            <label><input type="checkbox" name="p_race_num" value="4" checked> 4R</label>
+                            <label><input type="checkbox" name="p_race_num" value="5" checked> 5R</label>
+                            <label><input type="checkbox" name="p_race_num" value="6" checked> 6R</label>
+                            <label><input type="checkbox" name="p_race_num" value="7" checked> 7R</label>
+                            <label><input type="checkbox" name="p_race_num" value="8" checked> 8R</label>
+                            <label><input type="checkbox" name="p_race_num" value="9" checked> 9R</label>
+                            <label><input type="checkbox" name="p_race_num" value="10" checked> 10R</label>
+                            <label><input type="checkbox" name="p_race_num" value="11" checked> 11R</label>
+                            <label><input type="checkbox" name="p_race_num" value="12" checked> 12R</label>
+                        </div>
+                    </div>
+
+                    <div class="filter-group">
+                        <label
+                            style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.85rem;">頭数:</label>
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                            <label><input type="radio" name="p_horses" value="all" checked> すべて</label>
+                            <label><input type="radio" name="p_horses" value="lt10"> 10頭以下</label>
+                            <label><input type="radio" name="p_horses" value="12"> 12頭戦</label>
+                            <label><input type="radio" name="p_horses" value="12-14"> 12-14頭</label>
+                            <label><input type="radio" name="p_horses" value="gt15"> 15頭以上</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-bottom: 30px;">
+                <button onclick="verifyPeriodPredictions()" class="primary-btn"
+                    style="padding: 15px 40px; font-size: 1.1rem; background: linear-gradient(135deg, var(--accent-gold), #f39c12); color: black;">
+                    <i data-lucide="play-circle"></i> 指定期間の一括検証を実行
+                </button>
+                <div style="margin-top: 10px;">
+                    <label
+                        style="display: flex; align-items: center; gap: 5px; cursor: pointer; justify-content: center; font-size: 0.95rem;">
+                        <input type="checkbox" id="periodForceRefresh" style="width: 18px; height: 18px;"> 最新ロジックで強制再計算
+                        (キャッシュ無視)
+                    </label>
+                </div>
+            </div>
+
+            <!-- 期間検証結果エリア -->
+            <div id="periodResults" class="hidden">
+                <h3><i data-lucide="line-chart"></i> 期間集計結果</h3>
+                <div id="periodStats" style="margin-bottom: 20px;"></div>
+                <div class="analysis-table-container">
+                    <table class="analysis-table">
+                        <thead>
+                            <tr>
+                                <th>日付/R</th>
+                                <th>会場</th>
+                                <th>レース名</th>
+                                <th>頭数</th>
+                                <th>的中状況</th>
+                                <th>配当(払戻)</th>
+                                <th>結果</th>
+                                <th>選定馬</th>
+                            </tr>
+                        </thead>
+                        <tbody id="periodTableBody"></tbody>
+                    </table>
+                </div>
+                <div id="periodSpecialtyAnalysis"
+                    style="margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">
+                </div>
+            </div>
+        </section>
+
+        <!-- キャッシュ管理モーダル -->
+        <div id="cacheManagerModal" class="hidden"
+            style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+            <div
+                style="background: linear-gradient(145deg, #1a1a2e, #16213e); border-radius: 16px; padding: 30px; max-width: 700px; width: 90%; max-height: 80vh; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;"><i data-lucide="database"
+                            style="width: 24px; height: 24px;"></i> キャッシュ管理</h2>
+                    <button onclick="closeCacheManager()"
+                        style="background: rgba(255,255,255,0.1); border: none; color: white; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center;"
+                        onmouseover="this.style.background='rgba(255,255,255,0.2)'"
+                        onmouseout="this.style.background='rgba(255,255,255,0.1)'">✕</button>
+                </div>
+                <p style="font-size: 0.85rem; color: #aaa; margin-bottom: 15px;">⚠ <span
+                        style="color: #e74c3c;">赤背景</span> = 過去日で結果データなし（不要キャッシュの可能性あり）</p>
+                <div id="cacheStatsContainer" style="font-size: 0.9rem;">読込中...</div>
+                <div style="margin-top: 20px; text-align: right;">
+                    <button onclick="closeCacheManager()" class="secondary-btn" style="padding: 8px 20px;">閉じる</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            const defaultDateRaw = "{{ default_date }}";
+            if (defaultDateRaw) {
+                const y = defaultDateRaw.substring(0, 4);
+                const m = defaultDateRaw.substring(4, 6);
+                const d = defaultDateRaw.substring(6, 8);
+                const dateStr = `${y}-${m}-${d}`;
+                document.getElementById('datePicker').value = dateStr;
+                document.getElementById('startDate').value = dateStr;
+                document.getElementById('endDate').value = dateStr;
+            }
+        });
+
+        let currentRaceId = null;
+        let currentRaces = [];
+        let currentHorses = [];
+        let currentRaceUrls = {};
+
+        function checkProtectionStatus(data) {
+            const banner = document.getElementById('protectionBanner');
+            if (!banner) return;
+            if (data && data.is_protected) {
+                banner.classList.remove('hidden');
+                lucide.createIcons();
+            } else {
+                banner.classList.add('hidden');
+            }
+        }
+
+        async function resetProtection() {
+            if (!confirm('保護モードを解除しますか？\n\n※ 解除後すぐにアクセスすると再度ブロックされる可能性があります。\n   30分以上経過してから解除することを推奨します。')) return;
+            try {
+                const res = await fetch('/api/reset_protection', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    document.getElementById('protectionBanner').classList.add('hidden');
+                    alert('✅ ' + data.message + '\n（キャッシュ ' + data.cache_cleared + '件 もクリアしました）');
+                } else {
+                    alert('リセットに失敗しました。');
+                }
+            } catch (e) {
+                console.error(e);
+                alert('通信エラーが発生しました。');
+            }
+        }
+
+        // 実績文字列（例: "1-2-0-3"）から勝率を計算する
+        function calculateRate(val) {
+            if (!val || val === '-') return -1;
+            const m = val.match(/(\d+)-(\d+)-(\d+)-(\d+)/);
+            if (!m) return -1;
+            const parts = m.slice(1, 5).map(Number);
+            const total = parts.reduce((a, b) => a + b, 0);
+            return total === 0 ? -1 : (parts[0] + parts[1] + parts[2]) / total;
+        }
+
+        function getBgClass(rate) {
+            if (rate < 0) return '';
+            if (rate >= 0.75) return 'bg-red';
+            if (rate >= 0.50) return 'bg-yellow';
+            if (rate > 0) return 'bg-blue';
+            return 'bg-gray';
+        }
+
+        function saveExtraInfo() {
+            if (!currentRaceId) return;
+            const extra = {
+                cushion: document.getElementById('cushionVal').value,
+                training: document.getElementById('trainingUrl').value
+            };
+            localStorage.setItem(`extra_${currentRaceId}`, JSON.stringify(extra));
+        }
+
+        function loadExtraInfo(raceId) {
+            const extra = JSON.parse(localStorage.getItem(`extra_${raceId}`) || '{}');
+            const cVal = document.getElementById('cushionVal');
+            const tUrl = document.getElementById('trainingUrl');
+            if (cVal) cVal.value = extra.cushion || '';
+            if (tUrl) tUrl.value = extra.training || '';
+        }
+
+        document.getElementById('datePicker').addEventListener('change', () => {
+            document.getElementById('verificationResults').classList.add('hidden');
+            fetchRaces();
+            setTimeout(() => loadRecommendedRaces(), 100); // おすすめレースも並行ロード
+        });
+
+        async function fetchRaces() {
+            let dateInput = document.getElementById('datePicker').value;
+            if (!dateInput) { alert("日付を選択してください"); return; }
+            const dateStr = dateInput.substring(0, 10).replace(/-/g, '');
+
+            // document.getElementById('loading').classList.remove('hidden'); // 全画面ロードを廃止
+            // loadingText.innerText = "レース一覧を取得中...";
+
+            const container = document.getElementById('raceContainer');
+            container.innerHTML = '<div style="text-align:center; padding:20px; color:#aaa;"><div class="spinner" style="vertical-align:middle; display:inline-block; margin-right:8px;"></div>レース一覧を取得中...</div>';
+
+            document.getElementById('raceListOfDay').classList.add('hidden');
+            document.getElementById('raceDetails').classList.add('hidden');
+
+            try {
+                // Phase 1: 高速一覧取得 (Scoringをスキップ)
+                const response = await fetch(`/api/races?date=${dateStr}&skip_scoring=1`);
+                const res = await response.json();
+
+                checkProtectionStatus(res);
+
+                currentRaces = res.races || [];
+
+                if (currentRaces.length === 0) {
+                    container.innerHTML = '<p style="text-align:center; padding:20px; color:#888;">この日付のレースが見つかりません。</p>';
+                    return;
+                }
+
+                // 一旦一覧を表示 (自信度なし)
+                renderRaceList(currentRaces, [], []);
+                document.getElementById('raceListOfDay').classList.remove('hidden');
+
+                // loadingText.innerText = "取得完了！";
+                // setTimeout(() => loadingEl.classList.add('hidden'), 500);
+                lucide.createIcons();
+
+            } catch (e) {
+                console.error(e);
+                container.innerHTML = `<p style="text-align:center; padding:20px; color:#e74c3c;">レース取得エラー: ${e.message}</p>`;
+            }
+        }
+
+        function updatePickups(roughRaces, stableRaces) {
+            const container = document.getElementById('raceContainer');
+            let pickupWrapper = container.querySelector('.pickup-horizontal-container');
+
+            if (!pickupWrapper && (roughRaces.length > 0 || stableRaces.length > 0)) {
+                pickupWrapper = document.createElement('div');
+                pickupWrapper.className = 'pickup-horizontal-container';
+                container.prepend(pickupWrapper);
+            }
+
+            if (!pickupWrapper) return;
+            pickupWrapper.innerHTML = '';
+
+            if (roughRaces.length > 0) {
+                const section = document.createElement('div');
+                section.className = 'pickup-section rough-section card';
+                section.innerHTML = `
+                    <h3><i data-lucide="alert-triangle"></i> 波乱注意 TOP3</h3>
+                    <div class="pickup-list-horizontal"></div>
+                `;
+                const list = section.querySelector('.pickup-list-horizontal');
+                roughRaces.forEach(race => {
+                    const card = document.createElement('div');
+                    card.className = 'pickup-card-horizontal';
+                    const timeStr = race.time ? `<span class="pickup-time">${race.time}</span>` : '';
+                    card.innerHTML = `
+                        <div class="pickup-title">${race.venue}${race.race_num}R ${timeStr} <span class="pickup-name">${race.name || ''}</span></div>
+                        <div class="pickup-reason">${race.rough_reasons.join(' / ')}</div>
+                    `;
+                    card.onclick = () => {
+                        selectRace(race.id, race.name);
+                        const target = document.querySelector(`.race-card-mini[data-race-id="${race.id}"]`);
+                        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    };
+                    list.appendChild(card);
+                });
+                pickupWrapper.appendChild(section);
+            }
+
+            if (stableRaces.length > 0) {
+                const section = document.createElement('div');
+                section.className = 'pickup-section stable-section card';
+                section.innerHTML = `
+                    <h3><i data-lucide="gem"></i> 的中期待 TOP3</h3>
+                    <div class="pickup-list-horizontal"></div>
+                `;
+                const list = section.querySelector('.pickup-list-horizontal');
+                stableRaces.forEach(race => {
+                    const card = document.createElement('div');
+                    card.className = 'pickup-card-horizontal';
+                    const timeStr = race.time ? `<span class="pickup-time">${race.time}</span>` : '';
+                    card.innerHTML = `
+                        <div class="pickup-title">${race.venue}${race.race_num}R ${timeStr} <span class="pickup-name">${race.name || ''}</span></div>
+                        <div class="pickup-reason">${race.stable_reasons.join(' / ')}</div>
+                    `;
+                    card.onclick = () => {
+                        selectRace(race.id, race.name);
+                        const target = document.querySelector(`.race-card-mini[data-race-id="${race.id}"]`);
+                        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    };
+                    list.appendChild(card);
+                });
+                pickupWrapper.appendChild(section);
+            }
+            lucide.createIcons();
+        }
+
+        function renderRaceList(races, roughRaces, stableRaces) {
+            const container = document.getElementById('raceContainer');
+            container.innerHTML = '';
+
+            updatePickups(roughRaces, stableRaces);
+
+            if (races.length > 0) {
+                const groups = {};
+                races.forEach(race => {
+                    const v = race.venue || 'その他';
+                    if (!groups[v]) groups[v] = [];
+                    groups[v].push(race);
+                });
+
+                Object.keys(groups).sort().forEach(venue => {
+                    const venueWrapper = document.createElement('div');
+                    venueWrapper.className = 'venue-group-row card';
+                    venueWrapper.innerHTML = `
+                        <div class="venue-label-side">${venue}</div>
+                        <div class="venue-races-grid"></div>
+                    `;
+                    const grid = venueWrapper.querySelector('.venue-races-grid');
+                    groups[venue].forEach(race => {
+                        const card = document.createElement('div');
+                        card.className = 'race-card-mini';
+                        card.setAttribute('data-race-id', race.id);
+
+                        // 自信度の表示
+                        const confidenceHtml = race.confidence ?
+                            `<span style="margin-left: 6px; font-size: 0.75rem; color: var(--accent-gold); font-weight: bold;"><i data-lucide="flame" style="width:12px; height:12px; vertical-align: middle; margin-right: 1px;"></i>${race.confidence}</span>` : '';
+
+                        const timeStr = race.time || '--:--';
+                        const isHit = race.is_past && race.is_hit;
+                        const hitBadge = isHit ? '<span class="hit-badge-mini">的中</span>' : '';
+
+                        card.onclick = () => selectRace(race.id, race.name);
+                        card.innerHTML = `
+                            <div class="mini-row1">
+                                <span class="mini-num">${race.race_num}R</span>
+                                <span class="mini-time">${timeStr}</span>
+                                ${confidenceHtml}
+                                ${hitBadge}
+                            </div>
+                            <div class="mini-name">${race.name || 'レース分析へ'}</div>
+                        `;
+                        grid.appendChild(card);
+                    });
+                    container.appendChild(venueWrapper);
+                });
+            } else {
+                container.innerHTML = '<p style="text-align:center; padding:20px; color:#888;">レースデータがありません。</p>';
+            }
+            lucide.createIcons();
+        }
+
+
+
+
+        async function goDetailedAnalysis(raceId, raceName) {
+            // レース一覧を表示（まだ取得していない場合を考慮）
+            if (currentRaces.length === 0) {
+                await fetchRaces();
+            }
+
+            // 該当レースを選択
+            selectRace(raceId, raceName);
+
+            // 入力セクションの表示（ある場合）
+            const extraSec = document.getElementById('inputExtraSection');
+            if (extraSec) {
+                extraSec.classList.remove('hidden');
+                loadExtraInfo(raceId);
+            }
+
+            // 分析開始
+            setTimeout(() => {
+                analyzeRace();
+            }, 500);
+        }
+
+        function updatePickups(roughRaces, stableRaces) {
+            const container = document.getElementById('raceContainer');
+            let pickupWrapper = container.querySelector('.pickup-horizontal-container');
+
+            if (!pickupWrapper && (roughRaces.length > 0 || stableRaces.length > 0)) {
+                pickupWrapper = document.createElement('div');
+                pickupWrapper.className = 'pickup-horizontal-container';
+                container.prepend(pickupWrapper);
+            }
+
+            if (!pickupWrapper) return;
+            pickupWrapper.innerHTML = '';
+
+            if (roughRaces.length > 0) {
+                const section = document.createElement('div');
+                section.className = 'pickup-section rough-section card';
+                section.innerHTML = `
+                    <h3><i data-lucide="alert-triangle"></i> 波乱注意 TOP3</h3>
+                    <div class="pickup-list-horizontal"></div>
+                `;
+                const list = section.querySelector('.pickup-list-horizontal');
+                roughRaces.forEach(race => {
+                    const card = document.createElement('div');
+                    card.className = 'pickup-card-horizontal';
+                    const timeStr = race.time ? `<span class="pickup-time">${race.time}</span>` : '';
+                    card.innerHTML = `
+                        <div class="pickup-title">${race.venue}${race.race_num}R ${timeStr} <span class="pickup-name">${race.name || ''}</span></div>
+                        <div class="pickup-reason">${race.rough_reasons.join(' / ')}</div>
+                    `;
+                    card.onclick = () => {
+                        selectRace(race.id, race.name);
+                        const target = document.querySelector(`.race-card-mini[data-race-id="${race.id}"]`);
+                        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    };
+                    list.appendChild(card);
+                });
+                pickupWrapper.appendChild(section);
+            }
+
+            if (stableRaces.length > 0) {
+                const section = document.createElement('div');
+                section.className = 'pickup-section stable-section card';
+                section.innerHTML = `
+                    <h3><i data-lucide="gem"></i> 的中期待 TOP3</h3>
+                    <div class="pickup-list-horizontal"></div>
+                `;
+                const list = section.querySelector('.pickup-list-horizontal');
+                stableRaces.forEach(race => {
+                    const card = document.createElement('div');
+                    card.className = 'pickup-card-horizontal';
+                    const timeStr = race.time ? `<span class="pickup-time">${race.time}</span>` : '';
+                    card.innerHTML = `
+                        <div class="pickup-title">${race.venue}${race.race_num}R ${timeStr} <span class="pickup-name">${race.name || ''}</span></div>
+                        <div class="pickup-reason">${race.stable_reasons.join(' / ')}</div>
+                    `;
+                    card.onclick = () => {
+                        selectRace(race.id, race.name);
+                        const target = document.querySelector(`.race-card-mini[data-race-id="${race.id}"]`);
+                        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    };
+                    list.appendChild(card);
+                });
+                pickupWrapper.appendChild(section);
+            }
+            lucide.createIcons();
+        }
+
+        function renderRaceList(races, roughRaces, stableRaces) {
+            const container = document.getElementById('raceContainer');
+            container.innerHTML = '';
+
+            updatePickups(roughRaces, stableRaces);
+
+            if (races.length > 0) {
+                const groups = {};
+                races.forEach(race => {
+                    const v = race.venue || 'その他';
+                    if (!groups[v]) groups[v] = [];
+                    groups[v].push(race);
+                });
+
+                Object.keys(groups).sort().forEach(venue => {
+                    const venueWrapper = document.createElement('div');
+                    venueWrapper.className = 'venue-group-row card';
+                    venueWrapper.innerHTML = `
+                        <div class="venue-label-side">${venue}</div>
+                        <div class="venue-races-horizontal"></div>
+                    `;
+                    const raceGrid = venueWrapper.querySelector('.venue-races-horizontal');
+                    groups[venue].forEach(race => {
+                        const div = document.createElement('div');
+                        div.className = 'race-card-mini';
+                        div.dataset.raceId = race.id;
+
+                        const timeStr = race.time || '--:--';
+                        const surfaceShort = (race.surface || '').replace('ダート', 'ダ').replace('障害', '障');
+                        const distStr = (race.distance || '').replace('m', '');
+                        const condStr = (race.weight_cond || (race.is_handicap ? 'ハンデ' : ''));
+                        const countStr = race.horse_count ? `${race.horse_count}頭` : '';
+
+                        let shortName = race.race_class || '';
+                        if (shortName.length > 8) shortName = shortName.substring(0, 7) + '..';
+
+                        const confidenceHtml = race.confidence ?
+                            `<span class="mini-confidence" style="margin-left: 6px; font-size: 0.75rem; color: var(--accent-gold); font-weight: bold;"><i data-lucide="flame" style="width:12px; height:12px; vertical-align: middle; margin-right: 1px;"></i>${race.confidence}</span>` : '';
+
+                        div.innerHTML = `
+                                <div class="mini-row1"><strong>${venue}${race.race_num}R</strong>${confidenceHtml} <span class="mini-race-name">${shortName}</span></div>
+                                <div class="mini-row2"><span class="mini-time">${timeStr}</span> <span class="mini-surface">${surfaceShort}${distStr}</span></div>
+                                <div class="mini-row3">${condStr} ${countStr}</div>
+                            `;
+                        div.onclick = () => selectRace(race.id, race.name);
+                        raceGrid.appendChild(div);
+                    });
+                    container.appendChild(venueWrapper);
+                });
+            }
+        }
+
+        async function selectRace(raceId, raceName) {
+            currentRaceId = raceId;
+            loadExtraInfo(raceId);
+
+            // 表示の初期化
+            const extraSec = document.getElementById('inputExtraSection');
+            if (extraSec) {
+                extraSec.classList.remove('hidden');
+                extraSec.style.display = 'block';
+            }
+            document.querySelectorAll('.race-card-mini').forEach(el => el.classList.remove('selected'));
+            const sel = document.querySelector(`.race-card-mini[data-race-id="${raceId}"]`);
+            if (sel) sel.classList.add('selected');
+
+            document.getElementById('selectedRaceTitle').innerText = `${raceName} (${raceId})`;
+            const list = document.getElementById('detailsList');
+            list.innerHTML = '<div class="premium-loader"></div>';
+            document.getElementById('raceDetails').classList.remove('hidden');
+            document.getElementById('analysisResult').classList.add('hidden');
+            document.getElementById('horseListSection').classList.add('hidden');
+            document.getElementById('analysis-section').style.display = 'none';
+
+            // フィードバックUIをリセット
+            const feedbackBtn = document.getElementById('feedbackBtn');
+            feedbackBtn.disabled = false;
+            feedbackBtn.innerHTML = '<i data-lucide="search"></i> 結果をフィードバック';
+            feedbackBtn.style.opacity = '1';
+            document.getElementById('feedbackResultArea').innerHTML = '';
+            document.getElementById('feedbackResultArea').classList.add('hidden');
+            document.getElementById('confirmFeedbackBtn').classList.add('hidden');
+            document.getElementById('confirmFeedbackBtn').disabled = false;
+            document.getElementById('confirmFeedbackBtn').innerHTML = '<i data-lucide="check-circle"></i> フィードバック完了（AIアルゴリズムに反映）';
+            document.getElementById('confirmFeedbackBtn').style.opacity = '1';
+            document.getElementById('feedbackStatus').classList.add('hidden');
+            document.getElementById('feedbackStatus').innerHTML = '';
+
+            document.getElementById('raceDetails').scrollIntoView({ behavior: 'smooth' });
+
+            // 【追加】追加入力セクションを表示しデータを読み込む（上部で処理済みのため削除）
+
+            try {
+                const response = await fetch(`/api/race_details?race_id=${raceId}`);
+                const links = await response.json();
+                currentRaceUrls = links;
+                list.innerHTML = '';
+                for (const [key, url] of Object.entries(links)) {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <div class="url-item">
+                            <span class="label">${key.toUpperCase()}</span>
+                            <a href="${url}" target="_blank" class="link-url">${url}</a>
+                            <button class="copy-btn secondary-btn" onclick="copyToClipboard('${url}')">
+                                <i data-lucide="copy"></i> コピー
+                            </button>
+                        </div>`;
+                    list.appendChild(li);
+                }
+                lucide.createIcons();
+            } catch (e) { list.innerText = 'URL情報の取得に失敗しました。'; }
+            fetchRaceHorses(raceId);
+        }
+
+        function copyRaceUrls() {
+            if (!currentRaceUrls || Object.keys(currentRaceUrls).length === 0) return;
+            const text = Object.values(currentRaceUrls).join('\n');
+            navigator.clipboard.writeText(text).then(() => alert('全URLをコピーしました！'));
+        }
+
+        async function fetchRaceHorses(raceId) {
+            document.getElementById('horseListSection').classList.remove('hidden');
+            document.getElementById('horseListLoading').classList.remove('hidden');
+            const tbody = document.querySelector('#horseListTable tbody');
+            tbody.innerHTML = '';
+            try {
+                const response = await fetch(`/api/race_horses?race_id=${raceId}`);
+                const data = await response.json();
+                currentHorses = data.horses || [];
+                currentHorses.forEach(horse => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="col-num">${horse.number}</td>
+                        <td class="col-name"><strong>${horse.horse_name}</strong></td>
+                        <td><a href="${horse.history_url}" target="_blank" class="link-url">競走実績</a></td>
+                        <td><a href="${horse.condition_url}" target="_blank" class="link-url">条件別データ</a></td>
+                        <td>
+                            <button class="copy-btn secondary-btn" onclick="copyHorseUrls('${horse.history_url}', '${horse.condition_url}')">
+                                <i data-lucide="copy"></i>
+                            </button>
+                        </td>`;
+                    tbody.appendChild(tr);
+                });
+                lucide.createIcons();
+            } catch (e) { console.error(e); tbody.innerHTML = `<tr><td colspan="5">取得エラー: ${e.message}</td></tr>`; }
+            finally { document.getElementById('horseListLoading').classList.add('hidden'); }
+        }
+
+        async function copyAllRaceUrls() {
+            const dateStr = document.getElementById('datePicker').value.replace(/-/g, '');
+            if (!dateStr) return;
+            try {
+                const response = await fetch(`/api/batch_race_urls?date=${dateStr}`);
+                const data = await response.json();
+                if (data.batch) {
+                    const text = data.batch.map(r => `https://www.keibalab.jp/db/race/${r.race_id}/`).join('\n');
+                    await navigator.clipboard.writeText(text);
+                    alert(`${data.batch.length}レース分のURLをコピーしました！`);
+                }
+            } catch (e) { alert('一括コピー中にエラーが発生しました'); }
+        }
+
+        function copyAllHorseUrls() {
+            if (currentHorses.length === 0) return;
+            const text = currentHorses.map(h => `${h.history_url}\n${h.condition_url}`).join('\n');
+            navigator.clipboard.writeText(text).then(() => alert(`${currentHorses.length}頭分のURLをコピーしました！`));
+        }
+
+        function copyHorseUrls(h, c) {
+            navigator.clipboard.writeText(`${h}\n${c}`).then(() => alert('競走実績と条件別データのURLをコピーしました！'));
+        }
+
+        async function analyzeRace(forceRefresh = false) {
+            if (!currentRaceId) return;
+
+            // 追加情報の収集
+            const extraInfo = {
+                cushion_value: document.getElementById('cushionVal').value,
+                training_url: document.getElementById('trainingUrl').value
+            };
+
+            document.getElementById('analysisLoading').classList.remove('hidden');
+            document.getElementById('analysisResult').classList.add('hidden');
+            document.getElementById('analysis-section').style.display = 'none';
+
+            const raceInfoHeader = document.getElementById('race-info-header');
+            raceInfoHeader.innerHTML = `<div class="premium-loader"></div> ${forceRefresh ? '最新情報を取得して再分析中...' : '分析データを収集中...'}`;
+
+            try {
+                const params = new URLSearchParams({
+                    race_id: currentRaceId,
+                    force_refresh: forceRefresh ? '1' : '0',
+                    extra_info: JSON.stringify(extraInfo)
+                });
+                const response = await fetch(`/api/analyze_race?${params.toString()}`);
+                const data = await response.json();
+                checkProtectionStatus(data);
+                if (data.error) { alert('分析エラー: ' + data.error); return; }
+                const analysis = data.analysis;
+                if (!analysis) {
+                    alert('分析データの取得に失敗しました。');
+                    return;
+                }
+
+                // 保存
+                if (forceRefresh) {
+                    saveExtraInfo();
+                    const lastUpd = document.getElementById('extraLastUpdated');
+                    if (lastUpd) lastUpd.innerText = `最終分析: ${new Date().toLocaleTimeString()}`;
+                }
+
+                if (analysis.race_info) {
+                    const info = analysis.race_info;
+                    const classStr = info.class_name ? ` ${info.class_name}` : '';
+                    const condStr = info.conditions ? ` (${info.conditions})` : '';
+
+                    document.getElementById('raceContextInfo').innerText =
+                        `${info.venue || ''} / ${info.surface || ''}${info.distance || ''}m / ${info.race_name || ''}${classStr}${condStr} / 馬場: ${info.track_condition || '-'}`;
+
+                    raceInfoHeader.innerHTML = `
+                        <div class="header-main">
+                            <a href="https://www.keibalab.jp/db/race/${currentRaceId}/umabashira.html" target="_blank">
+                                ${info.race_name || ''}${classStr}
+                            </a>
+                        </div>
+                        <div class="header-sub">
+                            ${info.venue || ''} ${info.surface || ''}${info.distance || ''}m ${condStr} | 馬場: ${info.track_condition || '-'}
+                        </div>`;
+                }
+
+                if (analysis.race_info) {
+                    const info = analysis.race_info;
+                    const paceCard = document.getElementById('pacePrediction');
+                    const paceLabel = info.pace === 'H' ? 'ハイペース' : info.pace === 'S' ? 'スローペース' : 'ミドルペース';
+                    const paceClass = info.pace === 'H' ? 'pace-high' : info.pace === 'S' ? 'pace-low' : 'pace-mid';
+
+                    let styleBreakdown = '';
+                    if (info.style_counts) {
+                        const sc = info.style_counts;
+                        styleBreakdown = `
+                            <div class="pace-breakdown">
+                                <span>逃げ: <b>${sc['逃げ'] || 0}</b></span>
+                                <span>先行: <b>${sc['先行'] || 0}</b></span>
+                                <span>差し: <b>${sc['差し'] || 0}</b></span>
+                                <span>追込: <b>${sc['追込'] || 0}</b></span>
+                            </div>
+                            <div class="pace-reason">判定根拠: ${info.reason || '-'}</div>`;
+                    }
+
+                    paceCard.innerHTML = `
+                        <div class="pace-header">
+                            ペース予想: 
+                            <span class="pace-badge ${paceClass}">${paceLabel} (${info.pace})</span>
+                        </div>
+                        ${styleBreakdown}
+                        <details class="logic-details">
+                            <summary>判定ロジック</summary>
+                            <ul>
+                                <li><b>H:</b> 逃げ3頭以上 または 逃げ・先行が60%以上</li>
+                                <li><b>S:</b> 逃げ1頭以下 かつ 逃げ・先行が30%以下</li>
+                                <li><b>M:</b> 上記以外</li>
+                            </ul>
+                        </details>`;
+                }
+                lucide.createIcons();
+
+                const sortedByOmega = [...analysis.horses].sort((a, b) => (b.omega || 0) - (a.omega || 0));
+                const omegaRanks = {};
+                sortedByOmega.forEach((h, i) => { omegaRanks[h.number] = i + 1; });
+                const sortedByPop = [...analysis.horses].sort((a, b) => (a.popularity || 999) - (b.popularity || 999));
+                const popRanks = {};
+                sortedByPop.forEach((h, i) => {
+                    popRanks[h.number] = (h.popularity && h.popularity > 0) ? i + 1 : null;
+                });
+
+                const bugDegs = analysis.horses.map(h => {
+                    const omRank = omegaRanks[h.number];
+                    const popRank = popRanks[h.number];
+                    return (omRank && popRank) ? popRank - omRank : null;
+                }).filter(v => v !== null);
+
+                const uniqueBugDegs = [...new Set(bugDegs)].sort((a, b) => b - a);
+                const max1 = uniqueBugDegs[0], max2 = uniqueBugDegs[1];
+                const min1 = uniqueBugDegs[uniqueBugDegs.length - 1], min2 = uniqueBugDegs[uniqueBugDegs.length - 2];
+
+                const kinDiffs = analysis.horses.map(h => {
+                    if (!h.kinryo_diff || h.kinryo_diff === '±0' || h.kinryo_diff === '-') return 0;
+                    return parseFloat(h.kinryo_diff.replace('+', ''));
+                });
+                const uniqueKins = [...new Set(kinDiffs)].sort((a, b) => a - b);
+                const kMin1 = uniqueKins[0] < 0 ? uniqueKins[0] : null, kMin2 = uniqueKins[1] < 0 ? uniqueKins[1] : null;
+                const kMax1 = uniqueKins[uniqueKins.length - 1] > 0 ? uniqueKins[uniqueKins.length - 1] : null;
+                const kMax2 = uniqueKins[uniqueKins.length - 2] > 0 ? uniqueKins[uniqueKins.length - 2] : null;
+
+                const tbody = document.querySelector('#analysisTable tbody');
+                tbody.innerHTML = '';
+
+                analysis.horses.forEach(row => {
+                    const tr = document.createElement('tr');
+                    const createTd = (val, isRateCell = false, bgClass = '', htmlContent = false) => {
+                        const td = document.createElement('td');
+                        if (htmlContent) td.innerHTML = val ?? 'ー'; else td.innerText = val ?? 'ー';
+                        if (isRateCell && val && val !== '-' && val !== 'ー') {
+                            const cls = getBgClass(calculateRate(val));
+                            if (cls) td.classList.add(cls);
+                        }
+                        if (bgClass) {
+                            bgClass.split(' ').forEach(cls => {
+                                if (cls.trim()) td.classList.add(cls.trim());
+                            });
+                        }
+                        return td;
+                    };
+
+                    const omRank = omegaRanks[row.number] || '-';
+                    const popRank = popRanks[row.number] || '-';
+                    const bugDeg = (typeof omRank === 'number' && typeof popRank === 'number') ? popRank - omRank : null;
+                    const bugStr = bugDeg !== null ? (bugDeg > 0 ? `+${bugDeg}` : `${bugDeg}`) : 'ー';
+
+                    let bugClass = '';
+                    if (bugDeg !== null) {
+                        if (bugDeg === max1) bugClass = 'bg-red'; else if (bugDeg === max2) bugClass = 'bg-yellow';
+                        else if (bugDeg === min1) bugClass = 'bg-gray'; else if (bugDeg === min2) bugClass = 'bg-blue';
+                    }
+
+                    const mKey = `mark_${currentRaceId}_${row.number}`;
+                    const sMark = localStorage.getItem(mKey) || "ー";
+                    const tdMark = document.createElement('td');
+                    tdMark.className = 'col-mark sticky-col sticky-col-1';
+                    const selMark = document.createElement('select');
+                    selMark.className = "mark-select premium-select";
+                    ["ー", "◎", "◯", "▲", "△", "☆", "消"].forEach(m => {
+                        const opt = document.createElement('option'); opt.value = m; opt.innerText = m;
+                        if (m === sMark) opt.selected = true;
+                        selMark.appendChild(opt);
+                    });
+                    selMark.onchange = (e) => localStorage.setItem(mKey, e.target.value);
+                    tdMark.appendChild(selMark);
+                    tr.appendChild(tdMark);
+
+                    tr.appendChild(createTd(row.number, false, 'col-num sticky-col sticky-col-2'));
+
+                    const tdName = document.createElement('td');
+                    tdName.className = 'col-name sticky-col sticky-col-3';
+                    tdName.innerHTML = `
+                        <div class="horse-link"><a href="${row.history_url}" target="_blank">${row.name}</a></div>
+                        <div class="horse-subinfo">${row.jockey} / ${row.kinryo}${row.kinryo_diff} / ${row.interval}</div>`;
+                    tr.appendChild(tdName);
+
+                    const bwClass = (row.weight_class ? row.weight_class + ' ' : '') + 'col-weight sticky-col sticky-col-4';
+                    const bwTd = createTd(row.weight_info || '-', false, bwClass);
+                    tr.appendChild(bwTd);
+
+                    const expertMark = row.expert_mark || '-';
+                    const mColor = expertMark === '◎' ? 'bg-red' : expertMark === '◯' ? 'bg-yellow' : expertMark === '▲' ? 'bg-cyan' : expertMark === '✕' ? 'bg-gray' : '';
+                    const expertClass = (mColor ? mColor + ' ' : '') + 'col-eval sticky-col sticky-col-5';
+                    const expertTd = createTd(`<strong>${expertMark}</strong><br><small>${row.expert_comment || ''}</small>`, false, expertClass, true);
+                    expertTd.style.fontSize = '0.85em';
+                    tr.appendChild(expertTd);
+
+                    const pJudg = row.performance_judgment || '-';
+                    const pColor = pJudg === '絶対買い' ? 'bg-red' : pJudg === '買い' ? 'bg-yellow' : pJudg === '見送り気味' ? 'bg-cyan' : pJudg === '見送り' ? 'bg-gray' : '';
+                    const perfClass = (pColor ? pColor + ' ' : '') + 'col-perf sticky-col sticky-col-6';
+                    const perfTd = createTd(`<strong>${pJudg}</strong><br><small>${row.performance_summary || ''}</small>`, false, perfClass, true);
+                    perfTd.style.fontSize = '0.85em';
+                    tr.appendChild(perfTd);
+
+                    const buyColor = row.buyability === '買い' ? 'bg-red' : row.buyability === '見送り' ? 'bg-gray' : row.buyability === '検討' ? 'bg-yellow' : '';
+                    const buyClass = (buyColor ? buyColor + ' ' : '') + 'col-eval2 sticky-col sticky-col-7';
+                    tr.appendChild(createTd(row.buyability || '-', false, buyClass));
+                    tr.appendChild(createTd(row.buyable_reason || '-'));
+
+                    tr.appendChild(createTd(row.omega, false, row.omega_class));
+                    tr.appendChild(createTd(omRank, false, row.omega_class));
+                    tr.appendChild(createTd(row.popularity || 'ー', false, (row.popularity ? row.pop_class : '')));
+                    tr.appendChild(createTd(popRank, false, (popRank !== '-' ? row.pop_class : '')));
+                    tr.appendChild(createTd(bugStr, false, bugClass));
+                    tr.appendChild(createTd(row.disregard || 'ー'));
+
+                    const bVal = row.blinker || '-';
+                    tr.appendChild(createTd(bVal, false, (bVal === '新規' || bVal === '再' || bVal === '外し') ? 'bg-yellow' : ''));
+
+                    let kdVal = 0; if (row.kinryo_diff && row.kinryo_diff !== '±0' && row.kinryo_diff !== '-') kdVal = parseFloat(row.kinryo_diff.replace('+', ''));
+                    let kdClass = '';
+                    if (kdVal !== 0) {
+                        if (kdVal === kMin1) kdClass = 'bg-red'; else if (kdVal === kMin2) kdClass = 'bg-yellow';
+                        else if (kdVal === kMax1) kdClass = 'bg-gray'; else if (kdVal === kMax2) kdClass = 'bg-blue';
+                    }
+                    tr.appendChild(createTd(row.kinryo_diff, false, kdClass));
+                    tr.appendChild(createTd(row.kinryo_record || '-', true));
+
+                    const intvDisp = ((row.interval || '') + ' ' + (row.interval_rec || '')).trim() || '-';
+                    tr.appendChild(createTd(intvDisp, true));
+
+                    tr.appendChild(createTd(row.course_record, true));
+                    tr.appendChild(createTd(row.rotation_record, true));
+                    tr.appendChild(createTd(row.condition_record, true));
+                    tr.appendChild(createTd(row.distance_record, true));
+                    tr.appendChild(createTd(row.surface_record, true));
+
+                    tr.appendChild(createTd(row.best_time_detail, false, row.best_time_class));
+                    tr.appendChild(createTd(row.best_3f_detail, false, row.best_3f_class));
+
+                    tr.appendChild(createTd(row.pace_record, true));
+                    tr.appendChild(createTd(row.frame_record, true));
+                    tr.appendChild(createTd(row.jockey_record, true));
+                    tr.appendChild(createTd(row.season_record, true));
+                    tr.appendChild(createTd(row.style_display || `${row.running_style_main || row.running_style}`, true));
+
+                    tbody.appendChild(tr);
+                });
+
+                document.getElementById('analysis-section').style.display = 'block';
+                if (analysis) {
+                    renderNotes(analysis);
+                    renderRecommendations(analysis.recommendations, analysis.confidence);
+                    renderHimo(analysis.himo_horses);
+                    renderDiscouraged(analysis.discouraged);
+                    renderStrategies(analysis.betting_strategies);
+                }
+                document.getElementById('analysisResult').classList.remove('hidden');
+                lucide.createIcons();
+            } catch (e) { console.error(e); alert('分析中にエラーが発生しました: ' + e.message); }
+            finally { document.getElementById('analysisLoading').classList.add('hidden'); }
+        }
+
+        function renderRecommendations(recommendations, confidence) {
+            if (!recommendations) return;
+            const section = document.getElementById('recommendations-section');
+            const container = document.getElementById('recommendation-cards');
+            container.innerHTML = '';
+
+            if (!recommendations || recommendations.length === 0) {
+                section.classList.add('hidden');
+                return;
+            }
+
+            // レース自信度バッジの表示
+            const badge = document.getElementById('raceConfidenceBadge');
+            if (typeof confidence === 'number' && confidence > 0) {
+                const stars = Math.max(1, Math.min(5, Math.round(confidence / 20)));
+                const filled = '★'.repeat(stars);
+                const empty = '☆'.repeat(5 - stars);
+                let color, bg;
+                if (stars >= 4) { color = '#f1c40f'; bg = 'rgba(241,196,15,0.15)'; }
+                else if (stars === 3) { color = '#3498db'; bg = 'rgba(52,152,219,0.15)'; }
+                else { color = '#95a5a6'; bg = 'rgba(149,165,166,0.15)'; }
+                badge.style.display = 'inline-block';
+                badge.style.color = color;
+                badge.style.background = bg;
+                badge.style.border = `1px solid ${color}`;
+                badge.innerHTML = `レース自信度 ${filled}${empty} <span style="font-size:0.8em;color:#aaa;margin-left:4px;">(${confidence})</span>`;
+            } else {
+                badge.style.display = 'none';
+            }
+
+            section.classList.remove('hidden');
+            recommendations.forEach((rec, idx) => {
+                const card = document.createElement('div');
+                card.className = 'recommend-card card';
+                const borderColors = ['#e74c3c', '#f1c40f', '#3498db'];
+                card.style.borderLeft = `6px solid ${borderColors[idx] || '#7f8c8d'}`;
+
+                const markHtml = rec.mark !== '無' ? `<span class="mark-badge">${rec.mark}</span>` : '';
+                card.innerHTML = `
+                    <div class="card-title">
+                        <span class="rank-num">${idx + 1}.</span> ${rec.number}番 ${rec.name} ${markHtml}
+                    </div>
+                    <div class="card-content">
+                        <div class="reason-label">選定理由</div>
+                        <p>${rec.reason}</p>
+                    </div>`;
+                container.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        function renderHimo(himo_horses) {
+            const section = document.getElementById('himo-section');
+            const container = document.getElementById('himo-cards');
+            container.innerHTML = '';
+            if (!himo_horses || himo_horses.length === 0) {
+                section.classList.add('hidden');
+                return;
+            }
+
+            section.classList.remove('hidden');
+            himo_horses.forEach(h => {
+                const card = document.createElement('div');
+                card.className = 'himo-card card';
+                card.innerHTML = `
+                    <div class="card-title">${h.number}番 ${h.name}</div>
+                    <div class="card-content">
+                        ${h.reason}
+                    </div>`;
+                container.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        function renderDiscouraged(discouraged) {
+            const section = document.getElementById('discouraged-section');
+            const container = document.getElementById('discouraged-cards');
+            container.innerHTML = '';
+            if (!discouraged || discouraged.length === 0) { section.classList.add('hidden'); return; }
+
+            section.classList.remove('hidden');
+            discouraged.forEach((rec, idx) => {
+                const card = document.createElement('div');
+                card.className = 'discouraged-card card';
+                card.innerHTML = `
+                    <div class="card-title">${idx + 1}. ${rec.number}番 ${rec.name}</div>
+                    <div class="card-content">
+                        <div class="reason-label">除外理由</div>
+                        <p>${rec.reason}</p>
+                    </div>`;
+                container.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        function renderStrategies(strategies) {
+            const section = document.getElementById('strategy-section');
+            const content = document.getElementById('strategy-content');
+            if (!strategies || strategies.length === 0) { section.classList.add('hidden'); return; }
+            section.classList.remove('hidden');
+            content.innerHTML = '';
+            strategies.forEach(s => {
+                const div = document.createElement('div');
+                div.className = 'strategy-item';
+                div.innerHTML = `<span class="strategy-badge">${s.type}</span> <span class="strategy-text">${s.content}</span>`;
+                content.appendChild(div);
+            });
+        }
+
+        async function copyTableToClipboard() {
+            try {
+                const raceInfoHeader = document.getElementById('race-info-header');
+                const pacePrediction = document.getElementById('pacePrediction');
+                const table = document.getElementById('analysisTable');
+                const recommendations = document.getElementById('recommendations-section');
+                const himo = document.getElementById('himo-section');
+                const strategy = document.getElementById('strategy-section');
+                const discouraged = document.getElementById('discouraged-section');
+
+                const styleMap = {
+                    'bg-red': 'background-color: #ffcccc; color: #990000;',
+                    'bg-yellow': 'background-color: #ffffcc; color: #996600;',
+                    'bg-blue': 'background-color: #e6f3ff; color: #004085;',
+                    'bg-gray': 'background-color: #f0f0f0; color: #666;',
+                    'bg-cyan': 'background-color: #e0ffff; color: #008b8b;',
+                    'bw-positive': 'background-color: #e6fffa; color: #234e52; font-weight: bold;',
+                    'bw-negative': 'background-color: #fff5f5; color: #c53030;',
+                    'bw-warning': 'background-color: #fff5f5; color: #c53030; font-weight: bold; border: 2px solid #fc8181;'
+                };
+
+                const getStyle = (el) => {
+                    let s = '';
+                    for (const cls in styleMap) if (el.classList.contains(cls)) s += styleMap[cls];
+                    return s;
+                };
+
+                let text = '', html = '<div style="font-family: sans-serif; background: #fff; padding: 20px; color: #333;">';
+
+                if (raceInfoHeader && raceInfoHeader.innerText && !raceInfoHeader.innerText.includes('分析中')) {
+                    text += raceInfoHeader.innerText + '\n\n';
+                    html += `<div style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">${raceInfoHeader.innerText}</div>`;
+                }
+
+                if (pacePrediction && !pacePrediction.classList.contains('hidden')) {
+                    text += "【ペース予想】\n" + pacePrediction.innerText.trim() + '\n\n';
+                    html += `<div style="margin-bottom: 20px; padding: 15px; border: 2px solid #eee; background: #fff;"><h3>【ペース予想】</h3>${pacePrediction.innerHTML}</div>`;
+                }
+
+                if (table) {
+                    text += "【分析表】\n";
+                    html += '<h3>【分析表】</h3><table border="1" style="border-collapse: collapse; font-size: 11px; margin-bottom: 20px;"><thead><tr style="background: #2c3e50; color: white;">';
+                    const headers = Array.from(table.querySelectorAll('thead th')).slice(1);
+                    headers.forEach(th => html += `<th style="padding: 6px; border: 1px solid #ddd;">${th.innerText.trim()}</th>`);
+                    text += headers.map(th => th.innerText.trim()).join('\t') + '\n';
+                    html += '</tr></thead><tbody>';
+                    Array.from(table.querySelectorAll('tbody tr')).forEach(tr => {
+                        html += '<tr>';
+                        const cells = Array.from(tr.querySelectorAll('td')).slice(1);
+                        cells.forEach(td => {
+                            const style = getStyle(td);
+                            html += `<td style="padding: 4px 6px; border: 1px solid #ddd; text-align: center; ${style}">${td.innerText.trim()}</td>`;
+                        });
+                        text += cells.map(td => td.innerText.trim().replace(/\n/g, ' ')).join('\t') + '\n';
+                        html += '</tr>';
+                    });
+                    text += '\n'; html += '</tbody></table>';
+                }
+
+                const renderCardSection = (title, element, border) => {
+                    if (!element || element.classList.contains('hidden')) return;
+                    text += `【${title}】\n`;
+                    html += `<h3>【${title}】</h3><div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;">`;
+                    Array.from(element.querySelectorAll('.card')).forEach(c => {
+                        text += c.innerText.trim() + '\n---\n';
+                        html += `<div style="flex: 1 1 250px; padding: 12px; border: 1px solid #eee; border-left: 6px solid ${border}; background: #fff;">${c.innerHTML}</div>`;
+                    });
+                    text += '\n'; html += '</div>';
+                };
+
+                renderCardSection('推奨馬', recommendations, '#e74c3c');
+                renderCardSection('ヒモ候補', himo, '#27ae60');
+
+                if (strategy && !strategy.classList.contains('hidden')) {
+                    text += "【買い目戦略】\n" + strategy.innerText.trim() + '\n\n';
+                    html += `<div style="margin-top: 20px; border: 2px solid #f1c40f; padding: 15px; border-radius: 8px; background: #fffdf2;"><h3>【買い目戦略】</h3>${strategy.innerHTML}</div>`;
+                }
+
+                renderCardSection('見送り候補', discouraged, '#95a5a6');
+                html += '</div>';
+
+                alert('カラー形式でコピーしました（Excel等で色が保持されます）');
+            } catch (err) {
+                console.error('Clipboard error:', err);
+                await navigator.clipboard.writeText(text.trim());
+                alert('テキスト形式でコピーしました');
+            }
+        }
+
+        function renderNotes(analysis) {
+            if (!analysis || !analysis.race_info) return;
+            const info = analysis.race_info;
+            const notes = document.getElementById('analysisNotes');
+            notes.innerHTML = `
+                <div class="notes-header"><i data-lucide="book-open"></i> 補足情報</div>
+                <ul class="notes-list">
+                    <li><b>Ω値:</b> 各条件（コース/距離/回り/馬場/コース×距離）の適性スコア合算（1着:5pt, 2着:3pt, 3着:2pt, 着外:-1pt）。</li>
+                    <li><b>バグ度:</b> 人気順位とΩ値順位の差分。プラスが大きいほど「人気以上に実力（穴）」、マイナスは過剰人気の可能性。</li>
+                    <li><b>成績形式:</b> 1着-2着-3着-着外。</li>
+                    <li><b>コース実績:</b> ${info.venue || ''}${info.surface || ''} の実績。</li>
+                    <li><b>ペース予測:</b> ${info.reason || ''} (H=ハイ, M=ミドル, S=スロー)。</li>
+                </ul>`;
+            lucide.createIcons();
+        }
+
+        async function fetchHorseData() {
+            const horseId = document.getElementById('horseIdInput').value;
+            if (!horseId) return;
+            const div = document.getElementById('horseResults');
+            div.innerHTML = '<div class="premium-loader"></div>';
+            div.classList.remove('hidden');
+            try {
+                const response = await fetch(`/api/horse_data?horse_id=${horseId}`);
+                const links = await response.json();
+                let html = '<div class="horse-data-grid">';
+                for (const [key, url] of Object.entries(links))
+                    html += `
+                        <div class="horse-data-item">
+                            <span class="label">${key.toUpperCase()}</span>
+                            <a href="${url}" target="_blank" class="link-url">Open Link</a>
+                            <button class="copy-btn secondary-btn" onclick="copyToClipboard('${url}')"><i data-lucide="copy"></i></button>
+                        </div>`;
+                html += '</div>';
+                div.innerHTML = html;
+                lucide.createIcons();
+            } catch (e) { div.innerHTML = '<div class="error-msg">取得エラーが発生しました</div>'; }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => alert('コピーしました: ' + text));
+        }
+
+        async function runBacktest() {
+            const sum = document.getElementById('accuracySummary');
+            const grid = document.getElementById('accuracyGrid');
+            grid.innerHTML = '<div class="loading-full"><div class="premium-loader"></div> 検証中... (約10〜30秒)</div>';
+            sum.classList.remove('hidden');
+
+            try {
+                const res = await fetch('/api/run_backtest');
+                const data = await res.json();
+                if (data.status === 'success') {
+                    grid.innerHTML = '';
+                    for (const key in data.summary) {
+                        const s = data.summary[key];
+                        const card = document.createElement('div');
+                        card.className = 'acc-card card';
+                        card.innerHTML = `
+                            <div class="acc-label"><i data-lucide="trending-up"></i> ${s.name}</div>
+                            <div class="acc-stats">
+                                <div class="acc-stat">勝率: <b>${s.win_rate}%</b></div>
+                                <div class="acc-stat">複勝率: <b>${s.hit_rate}%</b></div>
+                                <div class="acc-roi">回収率: <b>${s.win_roi}%</b></div>
+                            </div>`;
+                        grid.appendChild(card);
+                    }
+                    const info = document.createElement('div');
+                    info.className = 'acc-footer';
+                    info.innerText = `検証対象: 直近 ${data.total_races} レース`;
+                    grid.appendChild(info);
+
+                    const reportDiv = document.getElementById('analysisReport');
+                    const list = document.getElementById('analysisList');
+                    list.innerHTML = '';
+                    if (data.analysis && data.analysis.length > 0) {
+                        reportDiv.classList.remove('hidden');
+                        data.analysis.forEach(item => {
+                            const li = document.createElement('li');
+                            li.className = 'analysis-item';
+                            li.innerText = (typeof item === 'string') ? item : item.message;
+                            list.appendChild(li);
+                        });
+                    } else reportDiv.classList.add('hidden');
+                    lucide.createIcons();
+                } else grid.innerHTML = `<div class="error-msg">エラー: ${data.message}</div>`;
+            } catch (e) { grid.innerHTML = '<div class="error-msg">通信エラーが発生しました</div>'; }
+        }
+
+        async function runOptimization() {
+            if (!confirm("蓄積データに基づきAIパラメータを最適化します。よろしいですか？")) return;
+            try {
+                const res = await fetch('/api/run_optimization');
+                const data = await res.json();
+                if (data.status === 'success') alert(`成功: ${data.message}\n更新日時: ${data.last_updated}`);
+                else alert(`エラー: ${data.message}`);
+            } catch (e) { alert("最適化中に通信エラーが発生しました"); }
+        }
+
+        async function showRaceResult() {
+            if (!currentRaceId) return;
+            const btn = document.getElementById('feedbackBtn');
+            const resultArea = document.getElementById('feedbackResultArea');
+            const confirmBtn = document.getElementById('confirmFeedbackBtn');
+            const status = document.getElementById('feedbackStatus');
+
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin"></i> 結果取得中...';
+            status.classList.add('hidden');
+            lucide.createIcons();
+
+            try {
+                const response = await fetch(`/api/show_race_result?race_id=${currentRaceId}`);
+                const data = await response.json();
+                if (data.status !== 'success') {
+                    alert('結果取得エラー: ' + data.message);
+                    btn.disabled = false;
+                    btn.innerHTML = '<i data-lucide="search"></i> 結果をフィードバック';
+                    lucide.createIcons();
+                    return;
+                }
+
+                // 結果表示用HTMLを構築
+                let html = '';
+
+                // 1-5着の表示
+                html += '<div class="card" style="margin-bottom: 12px; padding: 15px;">';
+                html += '<h4 style="margin-bottom: 10px; color: var(--accent-gold);">📊 レース結果（1〜5着）</h4>';
+                html += '<table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">';
+                html += '<thead><tr style="background: var(--bg-card-alt, #1e2a3a); color: #fff;">';
+                html += '<th style="padding: 6px 8px;">着順</th><th>馬番</th><th>馬名</th><th>騎手</th><th>人気</th><th>オッズ</th><th>タイム</th>';
+                html += '</tr></thead><tbody>';
+                data.top5.forEach(r => {
+                    const rankColor = r.rank === 1 ? '#e74c3c' : r.rank === 2 ? '#3498db' : r.rank === 3 ? '#27ae60' : '#888';
+                    html += `<tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">`;
+                    html += `<td style="padding: 6px 8px; text-align: center; font-weight: bold; color: ${rankColor};">${r.rank}着</td>`;
+                    html += `<td style="text-align: center;">${r.number}</td>`;
+                    html += `<td style="font-weight: bold;">${r.horse_name}</td>`;
+                    html += `<td>${r.jockey_name}</td>`;
+                    html += `<td style="text-align: center;">${r.pop}人気</td>`;
+                    html += `<td style="text-align: center;">${r.odds}倍</td>`;
+                    html += `<td style="text-align: center;">${r.time_str}</td>`;
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+
+                // 配当表示
+                if (data.payouts && data.payouts.length > 0) {
+                    html += '<div style="margin-top: 10px; padding: 12px; background: rgba(241,196,15,0.1); border: 1px solid rgba(241,196,15,0.3); border-radius: 8px;">';
+                    html += '<h4 style="margin-bottom: 8px; color: var(--accent-gold); font-size: 0.95rem;">💰 払戻金</h4>';
+                    html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; font-size: 0.85rem;">';
+                    data.payouts.forEach(p => {
+                        const numInfo = p.number || '';
+                        const horseInfo = p.horse ? ` (${p.horse})` : '';
+                        html += `
+                            <div style="padding: 4px 8px; background: rgba(0,0,0,0.2); border-radius: 4px; border-left: 3px solid var(--accent-gold);">
+                                <span style="font-weight: bold; color: var(--accent-gold);">${p.type}</span>: 
+                                <span>${numInfo}${horseInfo}</span> 
+                                <span style="float: right; font-weight: bold; color: #fff;">${p.payout}</span>
+                            </div>`;
+                    });
+                    html += '</div></div>';
+                }
+                html += '</div>';
+
+                // 予想との乖離表示
+                html += '<div class="card" style="padding: 15px;">';
+                html += '<h4 style="margin-bottom: 10px; color: var(--accent-cyan, #2ecc71);">🔍 予想との乖離分析</h4>';
+
+                const renderGapGroup = (title, items, emoji) => {
+                    if (!items || items.length === 0) return '';
+                    let s = `<div style="margin-bottom: 10px;"><strong>${emoji} ${title}</strong><ul style="list-style: none; padding-left: 5px; margin: 5px 0;">`;
+                    items.forEach(item => {
+                        const statusColor = item.status.includes('的中') ? '#27ae60' :
+                            item.status.includes('激走') ? '#e74c3c' :
+                                item.status.includes('惜しい') ? '#f1c40f' :
+                                    item.status.includes('正解') ? '#27ae60' : '#e74c3c';
+                        s += `<li style="padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">`;
+                        s += `<span style="color: ${statusColor}; font-weight: bold;">${item.status}</span> `;
+                        s += `${item.number}番 ${item.name}（${item.predicted}）→ <strong>${item.actual_rank}着</strong>`;
+                        s += '</li>';
+                    });
+                    s += '</ul></div>';
+                    return s;
+                };
+
+                html += renderGapGroup('軸馬', data.gap_analysis.axis, '🎯');
+                html += renderGapGroup('ヒモ馬候補', data.gap_analysis.himo, '🔗');
+                html += renderGapGroup('消し馬', data.gap_analysis.discouraged, '❌');
+
+                // 乖離パターンの表示
+                if (data.discrepancies && data.discrepancies.length > 0) {
+                    html += '<div style="margin-top: 10px; padding: 8px; background: rgba(231,76,60,0.1); border-radius: 6px;">';
+                    html += '<strong style="color: #e74c3c;">⚠️ AI学習対象の乖離:</strong><ul style="margin: 5px 0; padding-left: 20px;">';
+                    data.discrepancies.forEach(d => {
+                        html += `<li style="padding: 2px 0; font-size: 0.88rem;">${d.message}</li>`;
+                    });
+                    html += '</ul></div>';
+                }
+                html += '</div>';
+
+                resultArea.innerHTML = html;
+                resultArea.classList.remove('hidden');
+
+                // 「フィードバック完了」ボタンを表示
+                confirmBtn.classList.remove('hidden');
+
+                btn.innerHTML = '<i data-lucide="check"></i> 結果表示済み';
+                btn.style.opacity = '0.7';
+                lucide.createIcons();
+
+            } catch (e) {
+                console.error(e);
+                alert('結果取得中にエラー: ' + e.message);
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="search"></i> 結果をフィードバック';
+            } finally {
+                lucide.createIcons();
+            }
+        }
+
+        async function confirmFeedback() {
+            if (!currentRaceId) return;
+            const confirmBtn = document.getElementById('confirmFeedbackBtn');
+            const status = document.getElementById('feedbackStatus');
+
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i data-lucide="loader-2" class="animate-spin"></i> AIに反映中...';
+            lucide.createIcons();
+
+            try {
+                const response = await fetch(`/api/confirm_feedback?race_id=${currentRaceId}`);
+                const data = await response.json();
+                if (data.status === 'success') {
+                    status.innerHTML = `<div style="padding: 12px; background: linear-gradient(135deg, rgba(39,174,96,0.2), rgba(46,204,113,0.1)); border: 1px solid #27ae60; border-radius: 8px; text-align: center;">
+                        <span style="font-size: 1.2rem;">✅</span><br>
+                        <strong style="color: #2ecc71;">${data.message}</strong><br>
+                        <span style="font-size: 0.85rem; color: var(--text-secondary);">次回の予想からアップデートされたアルゴリズムが適用されます。</span>
+                    </div>`;
+                    status.classList.remove('hidden');
+                    confirmBtn.innerHTML = '✅ 反映完了';
+                    confirmBtn.style.opacity = '0.7';
+                } else {
+                    alert('フィードバック反映エラー: ' + data.message);
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = '<i data-lucide="check-circle"></i> フィードバック完了（AIアルゴリズムに反映）';
+                }
+            } catch (e) {
+                console.error(e);
+                alert('通信エラーが発生しました');
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i data-lucide="check-circle"></i> フィードバック完了（AIアルゴリズムに反映）';
+            } finally {
+                lucide.createIcons();
+            }
+        }
+
+        async function clearServerCache() {
+            if (!confirm('サーバー上の予測キャッシュをすべてクリアしますか？\n次回から最新のロジックで再計算されます。')) return;
+            try {
+                const res = await fetch('/api/clear_cache');
+                const data = await res.json();
+                alert(data.message);
+            } catch (e) { alert('キャッシュクリアに失敗しました'); }
+        }
+
+        // 選択中の日付のキャッシュを削除
+        async function clearCacheBySelectedDate() {
+            const dateInput = document.getElementById('datePicker').value;
+            if (!dateInput) { alert('日付を選択してください'); return; }
+            const dateStr = dateInput.replace(/-/g, '');
+            const formatted = dateInput;
+            if (!confirm(`${formatted} のキャッシュを削除しますか？\n\nこの日のレース一覧・分析結果・レース結果がすべて削除されます。\n次回アクセス時に再取得されます。`)) return;
+            try {
+                const res = await fetch(`/api/clear_cache_by_date?date=${dateStr}`);
+                const data = await res.json();
+                if (data.status === 'success') {
+                    alert('✅ ' + data.message);
+                } else {
+                    alert('❌ ' + (data.message || data.error));
+                }
+            } catch (e) {
+                console.error(e);
+                alert('キャッシュ削除に失敗しました');
+            }
+        }
+
+        // キャッシュ管理モーダルを開く
+        async function openCacheManager() {
+            const modal = document.getElementById('cacheManagerModal');
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+            lucide.createIcons();
+            const container = document.getElementById('cacheStatsContainer');
+            container.innerHTML = '<div style="text-align: center; padding: 20px; color: #aaa;"><div class="spinner" style="margin: 0 auto 10px;"></div>キャッシュ情報を取得中...</div>';
+            try {
+                const res = await fetch('/api/cache_stats');
+                const data = await res.json();
+                if (data.stats.length === 0) {
+                    container.innerHTML = '<p style="text-align: center; padding: 20px; color: #888;">キャッシュデータがありません。</p>';
+                    return;
+                }
+                let html = '<table style="width: 100%; border-collapse: collapse;">';
+                html += '<thead><tr style="border-bottom: 2px solid rgba(255,255,255,0.2);">';
+                html += '<th style="padding: 8px; text-align: left;">日付</th>';
+                html += '<th style="padding: 8px; text-align: center;">分析数</th>';
+                html += '<th style="padding: 8px; text-align: center;">結果数</th>';
+                html += '<th style="padding: 8px; text-align: center;">状態</th>';
+                html += '<th style="padding: 8px; text-align: center;">操作</th>';
+                html += '</tr></thead><tbody>';
+                data.stats.forEach(s => {
+                    const d = s.date;
+                    const fmtDate = `${d.substring(0, 4)}/${d.substring(4, 6)}/${d.substring(6, 8)}`;
+                    // 過去日で結果なし → 赤背景
+                    const isWarning = s.is_past && !s.has_results;
+                    const rowStyle = isWarning ? 'background: rgba(231, 76, 60, 0.15); border-left: 3px solid #e74c3c;' : '';
+                    const statusBadge = s.is_today
+                        ? '<span style="background: #2ecc71; color: #000; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: bold;">今日</span>'
+                        : s.has_results
+                            ? '<span style="background: rgba(46,204,113,0.2); color: #2ecc71; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem;">結果あり</span>'
+                            : s.is_past
+                                ? '<span style="background: rgba(231,76,60,0.2); color: #e74c3c; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem;">結果なし</span>'
+                                : '<span style="background: rgba(241,196,15,0.2); color: #f1c40f; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem;">未開催</span>';
+                    html += `<tr style="border-bottom: 1px solid rgba(255,255,255,0.05); ${rowStyle}">`;
+                    html += `<td style="padding: 8px; font-weight: bold;">${fmtDate}</td>`;
+                    html += `<td style="padding: 8px; text-align: center;">${s.analysis_count}件</td>`;
+                    html += `<td style="padding: 8px; text-align: center;">${s.result_count}件</td>`;
+                    html += `<td style="padding: 8px; text-align: center;">${statusBadge}</td>`;
+                    html += `<td style="padding: 8px; text-align: center;"><button onclick="deleteCacheForDate('${d}', this)" style="background: rgba(231,76,60,0.2); color: #e74c3c; border: 1px solid rgba(231,76,60,0.4); border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: 0.8rem; transition: all 0.2s;" onmouseover="this.style.background='rgba(231,76,60,0.4)'" onmouseout="this.style.background='rgba(231,76,60,0.2)'">削除</button></td>`;
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            } catch (e) {
+                console.error(e);
+                container.innerHTML = '<p style="color: #e74c3c;">キャッシュ情報の取得に失敗しました。</p>';
+            }
+        }
+
+        // モーダル内から日付指定でキャッシュ削除
+        async function deleteCacheForDate(dateStr, btn) {
+            const fmtDate = `${dateStr.substring(0, 4)}/${dateStr.substring(4, 6)}/${dateStr.substring(6, 8)}`;
+            if (!confirm(`${fmtDate} のキャッシュを削除しますか？`)) return;
+            btn.disabled = true;
+            btn.textContent = '削除中...';
+            try {
+                const res = await fetch(`/api/clear_cache_by_date?date=${dateStr}`);
+                const data = await res.json();
+                if (data.status === 'success') {
+                    // 行を削除アニメーション
+                    const row = btn.closest('tr');
+                    row.style.transition = 'opacity 0.3s';
+                    row.style.opacity = '0';
+                    setTimeout(() => row.remove(), 300);
+                } else {
+                    alert('❌ ' + (data.message || data.error));
+                    btn.disabled = false;
+                    btn.textContent = '削除';
+                }
+            } catch (e) {
+                console.error(e);
+                alert('削除に失敗しました');
+                btn.disabled = false;
+                btn.textContent = '削除';
+            }
+        }
+
+        // キャッシュ管理モーダルを閉じる
+        function closeCacheManager() {
+            const modal = document.getElementById('cacheManagerModal');
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+        }
+
+        // 的中検証の共通描画ロジック（10戦略対応）
+        let lastAnalysisData = null; // データ保持用
+        let lastAnalysisTbody = null;
+        let lastAnalysisStats = null;
+        let lastAnalysisSpecialty = null;
+
+        function renderAnalysisToUI(data, tbody, stats, specialty) {
+            // データを保持（表示切替用）
+            lastAnalysisData = data;
+            lastAnalysisTbody = tbody;
+            lastAnalysisStats = stats;
+            lastAnalysisSpecialty = specialty;
+
+            tbody.innerHTML = '';
+            if (data.results.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px;">条件に一致するレースが見つかりませんでした。</td></tr>`;
+                return;
+            }
+
+            // 戦略定義の取得
+            const strategiesDef = data.analysis.strategies_def || [
+                { key: 't16', name: '⑨ 三連複 16点', points: 16, pay_field: 'pay_trio' },
+                { key: 't46', name: '⑩ 三連複 46点', points: 46, pay_field: 'pay_trio' },
+                { key: 'u18', name: '⑤ 馬連 18点', points: 18, pay_field: 'pay_quinella' }
+            ];
+
+            // テーブル行の描画
+            data.results.forEach(r => {
+                const tr = document.createElement('tr');
+
+                // 全戦略の的中状態をdata属性に保持
+                strategiesDef.forEach(st => {
+                    tr.dataset['hit_' + st.key] = r['hit_' + st.key] ? '1' : '0';
+                });
+
+                // 的中アイコン（初期は全戦略表示）
+                let hitIcons = '';
+                strategiesDef.forEach(st => {
+                    if (r['hit_' + st.key]) {
+                        const color = st.pay_field === 'pay_quinella' ? '#27ae60' : (st.key === 't16' || st.key === 't16m' ? '#e74c3c' : '#3498db');
+                        hitIcons += `<span class="hit-badge" data-strategy="${st.key}" title="${st.desc || ''}" style="cursor:help; display:inline-block; padding:2px 5px; border-radius:4px; font-size:0.7rem; background:${color}; color:white; margin:1px;">${st.name.replace(/[①-⑩]\s*/, '')}</span>`;
+                    }
+                });
+                if (!hitIcons) hitIcons = '<span style="color: #888;">外れ</span>';
+
+                const dateDisp = r.date ? `<small style="display:block; color:#aaa;">${r.date.substring(4, 6)}/${r.date.substring(6, 8)}</small>` : '';
+
+                tr.innerHTML = `
+                    <td>${dateDisp}${r.race_num}R</td>
+                    <td><small>${r.venue}</small></td>
+                    <td><strong>${r.name}</strong></td>
+                    <td style="text-align: center;">${r.n_horses || '-'}頭</td>
+                    <td class="hit-cell" style="text-align: center;">${hitIcons}</td>
+                    <td style="text-align: center;">
+                        <div style="color: var(--accent-gold); font-weight: bold; font-size: 0.85rem;">三連: ${(r.pay_trio || 0).toLocaleString()}円</div>
+                        <div style="color: #27ae60; font-weight: bold; font-size: 0.85rem;">馬連: ${(r.pay_quinella || 0).toLocaleString()}円</div>
+                    </td>
+                    <td style="font-size: 0.85rem;">${(r.top3 || []).join(', ')}</td>
+                    <td style="font-size: 0.8rem; color: var(--text-secondary); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${(r.selection || []).join(', ')}">${(r.selection || []).join(', ')}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // サマリー描画（全戦略 + 追加統計）
+            renderStrategySummary(data, stats, strategiesDef, 'all');
+
+            // Specialty analysis
+            renderSpecialtyAnalysis(data, specialty, strategiesDef);
+        }
+
+        function renderStrategySummary(data, stats, strategiesDef, selectedKey) {
+            const sumMap = data.analysis.summary;
+            const extra = data.analysis.extra_stats || {};
+
+            let statsHtml = '';
+
+            // 戦略フィルタ用ドロップダウン
+            statsHtml += `<div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <label style="font-weight: bold; color: var(--accent-gold);">📊 表示戦略:</label>
+                <select id="strategySelectorFor_${stats.id}" class="premium-select" onchange="filterStrategyDisplay(this.value, '${stats.id}')" style="padding: 6px 12px; border-radius: 6px; background: var(--bg-card); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.2); min-width: 200px;">
+                    <option value="all" ${selectedKey === 'all' ? 'selected' : ''}>全戦略を表示</option>
+                    <option value="umaren" ${selectedKey === 'umaren' ? 'selected' : ''}>── 馬連のみ ──</option>
+                    <option value="sanrenpuku" ${selectedKey === 'sanrenpuku' ? 'selected' : ''}>── 三連複のみ ──</option>`;
+            strategiesDef.forEach(st => {
+                statsHtml += `<option value="${st.key}" ${selectedKey === st.key ? 'selected' : ''}>${st.name}</option>`;
+            });
+            statsHtml += `</select></div>`;
+
+            // 追加統計カード
+            if (extra.total > 0) {
+                statsHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 15px;">
+                    <div class="card" style="text-align: center; padding: 12px; border-left: 4px solid #e74c3c;">
+                        <div style="font-size: 0.8rem; color: #aaa;">🎯 軸馬3着以内率</div>
+                        <div style="font-size: 1.6rem; font-weight: bold; color: #e74c3c;">${extra.axis_any_top3_rate || 0}%</div>
+                        <div style="font-size: 0.75rem; color: #888;">${extra.axis_any_top3}/${extra.total}</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 12px; border-left: 4px solid #3498db;">
+                        <div style="font-size: 0.8rem; color: #aaa;">🔗 8頭カバー率</div>
+                        <div style="font-size: 1.6rem; font-weight: bold; color: #3498db;">${extra.all8_cover_top3_rate || 0}%</div>
+                        <div style="font-size: 0.75rem; color: #888;">${extra.all8_cover_top3}/${extra.total}</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 12px; border-left: 4px solid #f39c12;">
+                        <div style="font-size: 0.8rem; color: #aaa;">⚡ 消し馬激走率</div>
+                        <div style="font-size: 1.6rem; font-weight: bold; color: #f39c12;">${extra.keshi_in_top3_rate || 0}%</div>
+                        <div style="font-size: 0.75rem; color: #888;">${extra.keshi_in_top3}/${extra.total}</div>
+                    </div>
+                </div>`;
+            }
+
+            // フィルタリング
+            let filteredKeys = strategiesDef.map(st => st.key);
+            if (selectedKey !== 'all') {
+                if (selectedKey === 'umaren') {
+                    filteredKeys = strategiesDef.filter(st => st.pay_field === 'pay_quinella').map(st => st.key);
+                } else if (selectedKey === 'sanrenpuku') {
+                    filteredKeys = strategiesDef.filter(st => st.pay_field === 'pay_trio').map(st => st.key);
+                } else {
+                    filteredKeys = [selectedKey];
+                }
+            }
+
+            // 戦略サマリーカード
+            statsHtml += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; width: 100%;">';
+            filteredKeys.forEach(key => {
+                const s = sumMap[key];
+                if (!s) return;
+                const roiColor = s.roi >= 100 ? '#e74c3c' : (s.roi >= 80 ? 'var(--accent-gold)' : '#ccc');
+                const borderColor = s.name.includes('馬連') ? '#27ae60' : '#3498db';
+                statsHtml += `
+                    <div class="card" style="text-align: center; padding: 12px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); border-top: 3px solid ${borderColor};">
+                        <div style="font-size: 0.85rem; color: #aaa; margin-bottom: 6px;">${s.name}</div>
+                        <div style="margin: 4px 0 10px 0;">
+                            <span style="font-size: 1.6rem; font-weight: bold; color: ${roiColor};">${s.roi}%</span>
+                            <span style="font-size: 0.75rem; color: #888; margin-left: 3px;">回収率</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-around; font-size: 0.85rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
+                            <div>的中率: <b>${s.hit_rate}%</b></div>
+                            <div style="color: #888;">的中: ${s.hits}/${data.results.length}</div>
+                        </div>
+                        <div style="display: flex; justify-content: space-around; font-size: 0.72rem; color: #aaa; margin-top: 8px;">
+                            <div>最小: <b style="color:#fff;">${(s.min_pay || 0).toLocaleString()}円</b></div>
+                            <div>最大: <b style="color:var(--accent-gold);">${(s.max_pay || 0).toLocaleString()}円</b></div>
+                        </div>
+                    </div>
+                `;
+            });
+            statsHtml += '</div>';
+            stats.innerHTML = statsHtml;
+        }
+
+        function filterStrategyDisplay(selectedKey, statsId) {
+            if (!lastAnalysisData) return;
+            const strategiesDef = lastAnalysisData.analysis.strategies_def || [];
+            const stats = document.getElementById(statsId) || lastAnalysisStats;
+
+            // サマリーカードの再描画
+            renderStrategySummary(lastAnalysisData, stats, strategiesDef, selectedKey);
+
+            // テーブル行の的中列もフィルタに応じて更新
+            const tbody = lastAnalysisTbody;
+            if (!tbody) return;
+
+            let filteredKeys = strategiesDef.map(st => st.key);
+            if (selectedKey !== 'all') {
+                if (selectedKey === 'umaren') {
+                    filteredKeys = strategiesDef.filter(st => st.pay_field === 'pay_quinella').map(st => st.key);
+                } else if (selectedKey === 'sanrenpuku') {
+                    filteredKeys = strategiesDef.filter(st => st.pay_field === 'pay_trio').map(st => st.key);
+                } else {
+                    filteredKeys = [selectedKey];
+                }
+            }
+
+            // 的中バッジの表示/非表示
+            tbody.querySelectorAll('tr').forEach(tr => {
+                const hitCell = tr.querySelector('.hit-cell');
+                if (!hitCell) return;
+                const badges = hitCell.querySelectorAll('.hit-badge');
+                let anyVisible = false;
+                badges.forEach(badge => {
+                    const stKey = badge.dataset.strategy;
+                    if (filteredKeys.includes(stKey)) {
+                        badge.style.display = 'inline-block';
+                        anyVisible = true;
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                });
+                // 外れ表示の切替
+                const missSpan = hitCell.querySelector('span:not(.hit-badge)');
+                if (missSpan) {
+                    // フィルタされた戦略の中で1つでも的中があるか
+                    const hasHit = filteredKeys.some(k => tr.dataset['hit_' + k] === '1');
+                    if (!hasHit) {
+                        if (!hitCell.querySelector('.miss-label')) {
+                            const ml = document.createElement('span');
+                            ml.className = 'miss-label';
+                            ml.style.color = '#888';
+                            ml.innerText = '外れ';
+                            hitCell.appendChild(ml);
+                        }
+                    }
+                }
+                // hit-badge が1つも見えない場合にmiss-labelを表示 
+                const missLabels = hitCell.querySelectorAll('.miss-label');
+                const hasVisibleBadge = Array.from(badges).some(b => b.style.display !== 'none');
+                missLabels.forEach(ml => ml.style.display = hasVisibleBadge ? 'none' : 'inline');
+            });
+
+            // Specialty analysisも再描画
+            renderSpecialtyAnalysis(lastAnalysisData, lastAnalysisSpecialty, strategiesDef, filteredKeys);
+        }
+
+        function renderSpecialtyAnalysis(data, specialty, strategiesDef, filteredKeys) {
+            if (!data.analysis) return;
+            if (!filteredKeys) filteredKeys = strategiesDef.map(st => st.key);
+
+            const strategies = strategiesDef
+                .filter(st => filteredKeys.includes(st.key))
+                .map(st => ({
+                    key: st.key,
+                    label: st.name.replace(/[①-⑩]\s*/, ''),
+                    color: st.pay_field === 'pay_quinella' ? '#27ae60' : (st.key.includes('16') ? '#e74c3c' : '#3498db')
+                }));
+
+            const renderSection = (title, icon, analysisData) => {
+                if (!analysisData) return '';
+                let html = `<div class="card" style="padding: 15px;"><h4>${icon} ${title}</h4><div style="font-size: 0.85rem;">`;
+                for (const [key, val] of Object.entries(analysisData)) {
+                    html += `<div style="margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px;">
+                        <div style="font-weight: bold; margin-bottom: 6px; display:flex; justify-content:space-between; align-items:center;">
+                            <span>${key} <small style="font-weight: normal; color: #888;">(全 ${val.total} レース)</small></span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px;">`;
+                    strategies.forEach(st => {
+                        const hits = val[st.key] || 0;
+                        const rate = (val.total > 0 ? (hits / val.total * 100) : 0).toFixed(0);
+                        let inv = val[st.key + '_inv'] || 0;
+                        const ret = val[st.key + '_ret'] || 0;
+                        const roi = inv > 0 ? (ret / inv * 100).toFixed(0) : 0;
+
+                        html += `<div style="background: rgba(255,255,255,0.03); padding: 6px 10px; border-radius: 6px; border-left: 3px solid ${st.color};">
+                            <div style="display:flex; justify-content:space-between;">
+                                <b style="color: ${st.color}; font-size: 0.8rem;">${st.label}</b>
+                                <span>${hits}/${val.total} (${rate}%)</span>
+                            </div>
+                            <div style="text-align:right; font-size:0.75rem; color:${roi >= 100 ? '#e74c3c' : '#888'};">
+                                回収率: <b>${roi}%</b>
+                            </div>
+                        </div>`;
+                    });
+                    html += `</div></div>`;
+                }
+                html += '</div></div>';
+                return html;
+            };
+
+            let specHtml = '';
+            specHtml += renderSection('主要会場別の的中傾向', '🏟️', data.analysis.venue);
+            specHtml += renderSection('馬場種別別の的中傾向', '🐎', data.analysis.surface);
+            specHtml += renderSection('出走頭数別の的中傾向', '🔢', data.analysis.horse_count);
+            specialty.innerHTML = specHtml;
+        }
+
+        // NDJSON ストリームを読み取る共通関数
+        async function readNDJSONStream(url, onStart, onRace, onComplete, onError) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // 最後の不完全な行をバッファに戻す
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const data = JSON.parse(line);
+                            if (data.status === 'error') {
+                                onError(data.message);
+                                return;
+                            }
+                            if (data.status === 'progress') {
+                                if (data.type === 'start' || data.type === 'preparing') onStart(data);
+                                else if (data.type === 'race') onRace(data.data);
+                            } else if (data.status === 'success' || data.status === 'empty') {
+                                onComplete(data);
+                            }
+                        } catch (e) {
+                            console.error('JSON parse error', e, line);
+                        }
+                    }
+                }
+            } catch (e) {
+                onError(e.message);
+            }
+        }
+
+        // 単日 的中検証 (NDJSON対応)
+        async function verifyPredictions() {
+            const dateInput = document.getElementById('datePicker').value;
+            if (!dateInput) { alert("日付を選択してください"); return; }
+            const dateStr = dateInput.substring(0, 10).replace(/-/g, '');
+
+            const area = document.getElementById('verificationResults');
+            const tbody = document.getElementById('verificationTableBody');
+            const stats = document.getElementById('verificationStats');
+            const specialty = document.getElementById('specialtyAnalysis');
+
+            area.classList.remove('hidden');
+            tbody.innerHTML = '';
+            stats.innerHTML = '<div class="premium-loader"></div> 検証中... (1件目の処理に少し時間がかかります)';
+            specialty.innerHTML = '';
+            area.scrollIntoView({ behavior: 'smooth' });
+
+            const force = document.getElementById('forceRefresh')?.checked ? '1' : '0';
+            const url = `/api/verify_date_predictions?date=${dateStr}&force=${force}`;
+
+            let allResults = [];
+            let lastTotal = 0;
+
+            await readNDJSONStream(url,
+                (startData) => {
+                    if (startData.type === 'preparing') {
+                        stats.innerHTML = `<div style="color:#aaa;">${startData.message}</div>`;
+                    } else if (startData.type === 'start') {
+                        lastTotal = startData.total;
+                        stats.innerHTML = `<div style="font-weight:bold; color:var(--accent-gold);">検証開始: 全 ${lastTotal} レース</div>`;
+                    }
+                },
+                (raceData) => {
+                    allResults.push(raceData);
+                    // 1レースずつ行を追加
+                    appendRaceRow(raceData, tbody);
+                    // 暫定的な進捗表示
+                    stats.innerHTML = `<div style="font-weight:bold; color:var(--accent-gold);">検証中: ${allResults.length} / ${lastTotal || '?'} レース完了</div>`;
+                },
+                (finalData) => {
+                    if (finalData.status === 'success') {
+                        renderAnalysisToUI(finalData, tbody, stats, specialty);
+                    } else {
+                        tbody.innerHTML += `<tr><td colspan="8" style="text-align: center; color: #e74c3c;">${finalData.message}</td></tr>`;
+                        stats.innerHTML = `<div style="color: #e74c3c;">${finalData.message}</div>`;
+                    }
+                },
+                (err) => {
+                    tbody.innerHTML += `<tr><td colspan="8" style="text-align: center; color: #e74c3c;">エラー: ${err}</td></tr>`;
+                }
+            );
+        }
+
+        // 期間 指定 的中分析 (NDJSON対応)
+        async function verifyPeriodPredictions() {
+            const startInput = document.getElementById('startDate').value;
+            const endInput = document.getElementById('endDate').value;
+            if (!startInput || !endInput) { alert("開始日と終了日を選択してください"); return; }
+
+            const startDate = startInput.substring(0, 10).replace(/-/g, '');
+            const endDate = endInput.substring(0, 10).replace(/-/g, '');
+
+            const selectedVenues = Array.from(document.querySelectorAll('input[name="p_venue"]:checked')).map(cb => cb.value);
+            const selectedRaces = Array.from(document.querySelectorAll('input[name="p_race_num"]:checked')).map(cb => cb.value);
+
+            const filters = {
+                start_date: startDate,
+                end_date: endDate,
+                keyword: document.getElementById('filterKeyword').value,
+                surface: document.querySelector('input[name="p_surface"]:checked').value,
+                venues: selectedVenues.join(','),
+                race_nums: selectedRaces.join(','),
+                horses: document.querySelector('input[name="p_horses"]:checked').value,
+                shinba: document.getElementById('p_filterShinba').checked ? 1 : 0,
+                handicap: document.getElementById('p_filterHandicap').checked ? 1 : 0,
+                grade: document.getElementById('p_filterGrade').checked ? 1 : 0,
+                mare: document.getElementById('p_filterMare').checked ? 1 : 0
+            };
+
+            const force = document.getElementById('periodForceRefresh')?.checked ? '1' : '0';
+            const filterParams = Object.entries(filters)
+                .filter(([k, v]) => v !== '' && v !== 'all')
+                .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+                .join('&') + `&force=${force}`;
+
+            const area = document.getElementById('periodResults');
+            const tbody = document.getElementById('periodTableBody');
+            const stats = document.getElementById('periodStats');
+            const specialty = document.getElementById('periodSpecialtyAnalysis');
+
+            area.classList.remove('hidden');
+            tbody.innerHTML = '';
+            stats.innerHTML = '<div class="premium-loader"></div> 検証中... (1件目の処理に少し時間がかかります)';
+            specialty.innerHTML = '';
+            area.scrollIntoView({ behavior: 'smooth' });
+
+            const url = `/api/verify_period_predictions?${filterParams}`;
+            let allResults = [];
+            let lastTotal = 0;
+
+            await readNDJSONStream(url,
+                (startData) => {
+                    lastTotal = startData.total;
+                    stats.innerHTML = `<div style="font-weight:bold; color:var(--accent-gold);">期間検証開始: 合計 ${lastTotal} レース</div>`;
+                },
+                (raceData) => {
+                    allResults.push(raceData);
+                    appendRaceRow(raceData, tbody, true);
+                    stats.innerHTML = `<div style="font-weight:bold; color:var(--accent-gold);">検証進捗: ${allResults.length} / ${lastTotal} レース完了</div>`;
+                },
+                (finalData) => {
+                    if (finalData.status === 'success') {
+                        renderAnalysisToUI(finalData, tbody, stats, specialty);
+                    } else {
+                        tbody.innerHTML += `<tr><td colspan="8" style="text-align: center; color: #e74c3c;">${finalData.message}</td></tr>`;
+                    }
+                },
+                (err) => {
+                    tbody.innerHTML += `<tr><td colspan="8" style="text-align: center; color: #e74c3c;">エラー: ${err}</td></tr>`;
+                }
+            );
+        }
+
+        // 1レース分の結果を行として追加する補助関数
+        function appendRaceRow(r, tbody, showDate = false) {
+            const tr = document.createElement('tr');
+            const strategiesDef = [
+                { key: 'u5', name: '馬連 5点', desc: '軸馬1位から(軸馬2,3位＋ヒモ1,2,3位)へ流し' },
+                { key: 'u7', name: '馬連 7点', desc: '軸馬1位から(軸馬2,3位＋ヒモ1-5位)へ流し' },
+                { key: 'u9', name: '馬連 9点', desc: '軸馬1,2位から(軸馬3位＋ヒモ1,2,3位)へ流し(重複除外)' },
+                { key: 'u13', name: '馬連 13点', desc: '軸馬1,2位から(軸馬3位＋ヒモ1-5位)へ流し(重複除外)' },
+                { key: 'u18', name: '馬連 18点', desc: '軸馬1,2,3位からヒモ1-5位への流し＋軸馬BOX' },
+                { key: 't10', name: '三連複 10点', desc: '軸馬1位の1頭軸、相手(軸2,3位＋ヒモ1,2,3位)の5頭流し' },
+                { key: 't21', name: '三連複 21点', desc: '軸馬1位の1頭軸、相手(軸2,3位＋ヒモ1-5位)の7頭流し' },
+                { key: 't16m', name: '三連複 16点(2軸)', desc: '軸馬1,2位の2頭軸相手6頭流し＋軸馬1位の1頭軸相手5頭流し' },
+                { key: 't16', name: '三連複 16点', desc: '軸馬1位の1頭軸相手6頭流し(15点)＋軸BOX(1点)' },
+                { key: 't46', name: '三連複 46点', desc: '軸馬いずれか1頭以上を含む8頭BOX相当' }
+            ];
+
+            strategiesDef.forEach(st => {
+                tr.dataset['hit_' + st.key] = r['hit_' + st.key] ? '1' : '0';
+            });
+
+            let hitIcons = '';
+            strategiesDef.forEach(st => {
+                if (r['hit_' + st.key]) {
+                    const isUmaren = st.key.startsWith('u');
+                    const color = isUmaren ? '#27ae60' : (st.key.includes('16') ? '#e74c3c' : '#3498db');
+                    hitIcons += `<span class="hit-badge" data-strategy="${st.key}" title="${st.desc}" style="cursor:help; display:inline-block; padding:2px 5px; border-radius:4px; font-size:0.7rem; background:${color}; color:white; margin:1px;">${st.name}</span>`;
+                }
+            });
+            if (!hitIcons) hitIcons = '<span class="miss-label" style="color: #888;">外れ</span>';
+
+            const dateDisp = (showDate && r.date) ? `<small style="display:block; color:#aaa;">${r.date.substring(4, 6)}/${r.date.substring(6, 8)}</small>` : '';
+
+            const timeStr = r.time || '--:--';
+            const surfaceShort = (r.surface || '').replace('ダート', 'ダ').replace('障害', '障');
+            const distStr = (r.distance || '').replace('m', '');
+            const condStr = r.weight_cond || '';
+            const countStr = r.n_horses ? `${r.n_horses}頭` : '';
+            const displayRaceName = r.class || r.name;
+
+            tr.innerHTML = `
+                <td>${dateDisp}${r.race_num}R</td>
+                <td><small>${r.venue}</small></td>
+                <td>
+                    <a href="javascript:void(0)" onclick="selectRace('${r.id}', '${displayRaceName}')" class="race-link-rich">
+                        <div style="font-weight: bold; color: var(--accent-gold); font-size: 0.95rem;">${r.race_num}R ${displayRaceName}</div>
+                        <div style="font-size: 0.75rem; color: #ffcc00; margin-top: 2px; font-weight: bold; background: rgba(255,204,0,0.1); padding: 1px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;">
+                            <i data-lucide="flame" style="width:14px; height:14px;"></i> 自信度: ${r.confidence || 0}
+                        </div>
+                        <div style="font-size: 0.75rem; color: #aaa; margin-top: 4px; display: flex; gap: 8px;">
+                            <span><i data-lucide="clock" style="width:12px;height:12px;vertical-align:middle;"></i> ${timeStr}</span>
+                            <span>${surfaceShort}${distStr}</span>
+                            <span>${condStr}</span>
+                        </div>
+                    </a>
+                </td>
+                <td style="text-align: center;">${countStr}</td>
+                <td class="hit-cell" style="text-align: center;">${hitIcons}</td>
+                <td style="text-align: center;">
+                    <div style="color: var(--accent-gold); font-weight: bold; font-size: 0.85rem;">三連: ${(r.pay_trio || 0).toLocaleString()}円</div>
+                    <div style="color: #27ae60; font-weight: bold; font-size: 0.85rem;">馬連: ${(r.pay_quinella || 0).toLocaleString()}円</div>
+                </td>
+                <td style="font-size: 0.85rem;">${(r.top3 || []).join(', ')}</td>
+                <td style="font-size: 0.8rem; color: var(--text-secondary); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${(r.selection || []).join(', ')}">${(r.selection || []).join(', ')}</td>
+            `;
+            tbody.appendChild(tr);
+        }
+        function checkProtectionStatus(res) {
+            const banner = document.getElementById('protectionBanner');
+            if (res && res.is_protected) {
+                banner.classList.remove('hidden');
+                banner.scrollIntoView({ behavior: 'smooth' });
+                lucide.createIcons();
+            } else {
+                banner.classList.add('hidden');
+            }
+        }
+        // =============================================
+        // おすすめ激アツレースTOP5
+        // =============================================
+        async function loadRecommendedRaces() {
+            const dateInput = document.getElementById('datePicker');
+            if (!dateInput || !dateInput.value) return;
+            const dateStr = dateInput.value.replace(/-/g, '');
+            const venueFilter = document.getElementById('venueFilter').value;
+
+            const section = document.getElementById('recommendedRacesSection');
+            const loading = document.getElementById('recommendedRacesLoading');
+            const container = document.getElementById('recommendedRacesContainer');
+            const summaryDiv = document.getElementById('recommendedTotalSummary');
+
+            section.classList.remove('hidden');
+            loading.classList.remove('hidden');
+            container.innerHTML = '';
+            summaryDiv.classList.add('hidden');
+
+            try {
+                let url = `/api/get_best_races?date=${dateStr}`;
+                if (venueFilter) url += `&venue=${encodeURIComponent(venueFilter.trim())}`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                // 全レースの自信度マップを取得して currentRaces に反映 (遅延反映用)
+                if (data.all_confidences) {
+                    console.log("Updating all race list confidences asynchronously...");
+                    currentRaces.forEach(race => {
+                        if (data.all_confidences[race.id] !== undefined) {
+                            race.confidence = data.all_confidences[race.id];
+                        }
+                    });
+                    updateListConfidencesOnly(data.all_confidences);
+                }
+
+                loading.classList.add('hidden');
+
+                if (data.status === 'empty') {
+                    container.innerHTML = `<div style="color: #aaa; padding: 20px; text-align: center;">${data.message || 'レースが見つかりません'}</div>`;
+                    return;
+                }
+                if (data.status === 'error') {
+                    container.innerHTML = `<div style="color: #e74c3c; padding: 20px;">エラー: ${data.message}</div>`;
+                    return;
+                }
+
+                // 会場フィルタの更新
+                const select = document.getElementById('venueFilter');
+                if (select) {
+                    const currentVal = select.value;
+                    console.log("[Debug] Updated Venues:", data.venues, "Current Select:", currentVal);
+
+                    // すでに正しい選択肢がある場合は、全削除して作り直すと操作感が損なわれるため
+                    // 内容が同じならスキップするか、選択状態を慎重に保持
+                    const newVenues = data.venues || [];
+                    const existingOptions = Array.from(select.options).map(o => o.value).filter(v => v !== "");
+
+                    if (JSON.stringify(newVenues.sort()) !== JSON.stringify(existingOptions.sort())) {
+                        select.innerHTML = '<option value="">全会場</option>';
+                        newVenues.forEach(v => {
+                            const opt = document.createElement('option');
+                            opt.value = v; opt.textContent = v;
+                            if (v === currentVal) opt.selected = true;
+                            select.appendChild(opt);
+                        });
+                        // 元の値がリストに含まれているなら再セット
+                        if (newVenues.includes(currentVal)) select.value = currentVal;
+                    }
+                }
+
+                // 過去日付の場合、全体サマリー表示
+                if (data.is_past && data.total_summary) {
+                    const s = data.total_summary;
+                    const roiColor = s.roi >= 100 ? '#27ae60' : s.roi >= 50 ? '#f39c12' : '#e74c3c';
+                    summaryDiv.classList.remove('hidden');
+                    summaryDiv.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                            <span style="font-weight: bold; color: var(--accent-gold);">📊 おすすめTOP5 結果サマリー</span>
+                            <span>的中: <b style="color: #27ae60;">${s.hits}/${s.total_races}</b> (${s.hit_rate}%)</span>
+                            <span>回収率: <b style="color: ${roiColor}; font-size: 1.1em;">${s.roi}%</b></span>
+                            <span>投資: ${s.investment.toLocaleString()}円</span>
+                            <span>回収: <b>${s.return.toLocaleString()}円</b></span>
+                        </div>`;
+                }
+
+                // レースカード表示
+                const best = data.best_races || [];
+                if (best.length === 0) {
+                    container.innerHTML = '<div style="color: #aaa; padding: 20px; text-align: center;">おすすめレースが見つかりません</div>';
+                    return;
+                }
+
+                best.forEach((race, idx) => {
+                    const card = document.createElement('div');
+                    const borderColors = ['#f1c40f', '#e67e22', '#e74c3c', '#9b59b6', '#3498db'];
+                    const stars = Math.max(1, Math.min(5, Math.round((race.confidence || 0) / 20)));
+                    const starStr = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+
+                    // 予想馬データの構築 (軸・ヒモ・消し)
+                    const axisHorses = race.recommendations || [];
+                    const himoHorses = race.himo_horses || [];
+                    const discouragedHorses = race.discouraged || [];
+                    const all8 = [...axisHorses, ...himoHorses]; // 軸3+ヒモ5=計8頭
+
+                    let resultHtml = '';
+                    if (data.is_past && race.result) {
+                        const r = race.result;
+                        // 確定結果のHTML(5着まで)
+                        const top5 = r.top5 || [];
+                        const resultNumbersHtml = top5.length > 0
+                            ? `<div style="font-size: 0.75rem; color: #fff; margin-bottom: 8px; background: rgba(0,0,0,0.4); padding: 4px 8px; border-radius: 6px; display: inline-block;">
+                                 <span style="color: #aaa; margin-right: 6px;">確定:</span>
+                                 ${top5.map((num, i) => `<b style="color: ${i < 3 ? 'var(--accent-gold)' : '#ccc'}; margin-right: 4px;">${num}</b>`).join('<span style="color:#555;margin-right:4px;">-</span>')}
+                               </div>`
+                            : `<div style="font-size: 0.7rem; color: #888; margin-bottom: 6px;">結果データ取得中または不可</div>`;
+
+                        // 的中バッジの生成 (戦略別)
+                        let hitBadges = '';
+                        const strategiesDef = [
+                            { key: 'hit_t16', name: '三連複 16点', color: '#e74c3c' },
+                            { key: 'hit_t46', name: '三連複 46点', color: '#3498db' },
+                            { key: 'hit_t10', name: '三連複 10点', color: '#3498db' },
+                            { key: 'hit_u18', name: '馬連 18点', color: '#27ae60' },
+                            { key: 'hit_u5', name: '馬連 5点', color: '#27ae60' }
+                        ];
+
+                        strategiesDef.forEach(st => {
+                            if (r[st.key]) {
+                                hitBadges += `<span style="background: ${st.color}; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.65rem; margin-right: 4px;">${st.name.replace(' ', '')}</span>`;
+                            }
+                        });
+
+                        if (!hitBadges) {
+                            hitBadges = `<span style="background: rgba(255,255,255,0.05); color: #888; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem;">✖ 不的中</span>`;
+                        }
+
+                        // 全予想馬(11頭)の着順ステータスを生成 (5着まで判定)
+                        const getHorseStatusHtml = (hList, color) => {
+                            return hList.map(h => {
+                                const rankIndex = top5.indexOf(h.number.toString());
+                                const rank = rankIndex !== -1 ? rankIndex + 1 : 0;
+                                const isTop3 = rank > 0 && rank <= 3;
+                                const isTop5 = rank > 0 && rank <= 5;
+
+                                const borderStyle = isTop3 ? `border: 2px solid ${color}; transform: scale(1.1);` :
+                                    isTop5 ? `border: 1px solid #777; opacity: 0.8;` :
+                                        'border: 1px solid rgba(255,255,255,0.1); opacity: 0.5;';
+
+                                const badgeColor = isTop3 ? color : '#777';
+                                const badge = rank > 0 ? `<div style="position:absolute; top:-8px; right:-8px; background:${badgeColor}; color:#000; font-size:10px; border-radius:50%; width:16px; height:16px; display:flex; align-items:center; justify-content:center; font-weight:bold;">${rank}</div>` : '';
+                                return `<div style="position:relative; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.8rem; background:rgba(0,0,0,0.3); ${borderStyle}">${h.number}${badge}</div>`;
+                            }).join('');
+                        };
+
+                        resultHtml = `
+                            <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1);">
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                    <div style="display: flex; flex-wrap: wrap; gap: 4px;">${hitBadges}</div>
+                                    <div style="text-align: right;">
+                                        ${r.pay_quinella > 0 ? `<div style="color: #27ae60; font-size: 0.8rem; font-weight: bold;">馬連: ${r.pay_quinella.toLocaleString()}円</div>` : ''}
+                                        ${r.pay_trio > 0 ? `<div style="color: var(--accent-gold); font-size: 0.85rem; font-weight: bold;">三連複: ${r.pay_trio.toLocaleString()}円</div>` : ''}
+                                    </div>
+                                </div>
+                                ${resultNumbersHtml}
+                                <div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 4px;">
+                                    ${getHorseStatusHtml(axisHorses, '#f1c40f')}
+                                    <div style="width:1px; height:30px; background:rgba(255,255,255,0.1); margin:0 4px;"></div>
+                                    ${getHorseStatusHtml(himoHorses, '#2ecc71')}
+                                </div>
+                            </div>`;
+                    } else if (data.is_past && !race.result) {
+                        resultHtml = `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); color: #aaa; font-size: 0.8rem;">結果データ取得不可</div>`;
+                    }
+
+                    // 予想馬リストのHTML生成
+                    const generateHorseListHtml = (title, list, color, bgColor) => {
+                        if (!list || list.length === 0) return '';
+                        const items = list.map(h => `<div style="background:${bgColor}; border:1px solid ${color}44; padding:2px 6px; border-radius:4px; font-size:0.75rem; color:#eee;">${h.number} ${h.name}</div>`).join('');
+                        return `<div style="margin-top:8px;">
+                                    <div style="font-size:0.7rem; color:${color}; font-weight:bold; margin-bottom:4px; display:flex; align-items:center; gap:4px;"><span style="width:8px; height:8px; border-radius:50%; background:${color};"></span> ${title}</div>
+                                    <div style="display:flex; flex-wrap:wrap; gap:4px;">${items}</div>
+                                </div>`;
+                    };
+
+                    const axisHtml = generateHorseListHtml('軸馬候補 (Top 3)', axisHorses, '#f1c40f', 'rgba(241,196,15,0.1)');
+                    const himoHtml = generateHorseListHtml('ヒモ馬候補 (Himo 5)', himoHorses, '#2ecc71', 'rgba(46,204,113,0.1)');
+                    const discouragedHtml = generateHorseListHtml('消し馬 (Discard 3)', discouragedHorses, '#e74c3c', 'rgba(231,76,60,0.1)');
+
+                    card.style.cssText = `
+                        background: rgba(255,255,255,0.04);
+                        border: 1px solid rgba(255,255,255,0.1);
+                        border-left: 4px solid ${borderColors[idx] || '#7f8c8d'};
+                        border-radius: 12px;
+                        padding: 14px 16px;
+                        cursor: pointer;
+                        transition: transform 0.2s, box-shadow 0.2s;
+                        display: flex;
+                        flex-direction: column;
+                    `;
+                    card.onmouseenter = () => { card.style.transform = 'translateY(-2px)'; card.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)'; };
+                    card.onmouseleave = () => { card.style.transform = ''; card.style.boxShadow = ''; };
+                    card.onclick = () => { selectRace(race.id, race.name); };
+
+                    card.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <span style="font-size: 0.75rem; background: rgba(255,255,255,0.1); padding: 1px 5px; border-radius: 4px;">${race.venue} ${race.race_num}R</span>
+                                    <span style="font-size: 0.7rem; color: #888;">${race.time}</span>
+                                </div>
+                                <div style="font-weight: bold; color: var(--accent-gold); font-size: 1.1rem; margin-top: 4px; line-height: 1.2; text-decoration: underline; cursor: pointer;">
+                                    ${race.name || 'レース分析へ'}
+                                </div>
+                                <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">${race.surface || ''}${race.distance || ''} / ${race.horse_count || '?'}頭 / ${race.race_class || ''}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 0.85rem; font-weight: bold; color: ${stars >= 4 ? '#f1c40f' : stars >= 3 ? '#3498db' : '#95a5a6'}; letter-spacing: 1px;">${starStr}</div>
+                                <div style="font-size: 0.7rem; color: #aaa; margin-top: 2px;">自信度: <b style="color: var(--accent-gold);">${race.confidence || 0}</b></div>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 4px;">
+                            ${(race.reasons || []).map(r => `<span style="background: rgba(255,255,255,0.06); color: #ccc; padding: 1px 6px; border-radius: 4px; font-size: 0.7rem;">${r}</span>`).join('')}
+                        </div>
+
+                        ${axisHtml}
+                        ${himoHtml}
+                        ${discouragedHtml}
+                        <div style="margin-top: 10px; text-align: right;">
+                             <span style="font-size: 0.75rem; color: var(--accent-gold); border-bottom: 1px dashed var(--accent-gold);">詳細分析を表示 →</span>
+                        </div>
+                        ${resultHtml}
+                    `;
+                    container.appendChild(card);
+                });
+
+                checkProtectionStatus(data);
+
+            } catch (e) {
+                loading.classList.add('hidden');
+                container.innerHTML = `<div style="color: #e74c3c; padding: 20px;">エラー: ${e.message}</div>`;
+            }
+        }
+
+        // 自信度の表示（炎アイコンとスコア）のみを一覧から探し出して更新する補助関数
+        function updateListConfidencesOnly(confidenceMap) {
+            for (const [raceId, confidence] of Object.entries(confidenceMap)) {
+                if (!confidence) continue;
+                const card = document.querySelector(`.race-card-mini[data-race-id="${raceId}"]`);
+                if (card) {
+                    const row1 = card.querySelector('.mini-row1');
+                    if (row1) {
+                        // 既に自信度表示があるかチェック
+                        let confSpan = row1.querySelector('.conf-score-span');
+                        if (!confSpan) {
+                            confSpan = document.createElement('span');
+                            confSpan.className = 'conf-score-span';
+                            confSpan.style.cssText = "margin-left: 6px; font-size: 0.75rem; color: var(--accent-gold); font-weight: bold; animation: fadeIn 0.5s;";
+                            // hit-badgeの前に挿入（あれば）
+                            const hitBadge = row1.querySelector('.hit-badge-mini');
+                            if (hitBadge) row1.insertBefore(confSpan, hitBadge);
+                            else row1.appendChild(confSpan);
+                        }
+                        confSpan.innerHTML = `<i data-lucide="flame" style="width:12px; height:12px; vertical-align: middle; margin-right: 1px;"></i>${confidence}`;
+                    }
+                }
+            }
+            lucide.createIcons();
+        }
+    </script>
+</body>
+
+</html>
