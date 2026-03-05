@@ -185,6 +185,11 @@ else:
                     # ユーザー設定の印（なければAI印）
                     current_mark = st.session_state.user_marks[race_id].get(num, h.get('expert_mark', '無'))
                     
+                    # カラーロジック用の計算
+                    om_rank = h.get('omega_rank', 99)
+                    pop_rank = h.get('popularity_rank', 99)
+                    bug_deg = h.get('bug_degree', 0)
+                    
                     df_data.append({
                         "馬番": num,
                         "My印": current_mark,
@@ -194,7 +199,7 @@ else:
                         "Ω順": h.get('omega_rank', '-'),
                         "人気": h.get('popularity', '-'),
                         "人順": h.get('popularity_rank', '-'),
-                        "バグ": h.get('bug_degree', 0),
+                        "バグ": bug_deg,
                         "評価": h.get('performance_judgment', ''),
                         "理由": h.get('performance_summary', ''),
                         "ジョッキー": h.get('jockey', ''),
@@ -218,9 +223,49 @@ else:
                     })
                 df = pd.DataFrame(df_data)
                 
+                # --- 配色ロジック (Pandas Styler) ---
+                def apply_styles(row):
+                    styles = [''] * len(row)
+                    idx = row.name
+                    
+                    # 専門家評価 (AI印)
+                    mark = row['AI印']
+                    if mark == '◎': styles[df.columns.get_loc('AI印')] = 'background-color: rgba(244, 67, 54, 0.3)'
+                    elif mark == '○': styles[df.columns.get_loc('AI印')] = 'background-color: rgba(255, 193, 7, 0.3)'
+                    elif mark == '▲': styles[df.columns.get_loc('AI印')] = 'background-color: rgba(0, 188, 212, 0.3)'
+                    
+                    # 評価
+                    judg = row['評価']
+                    if judg == '絶対買い': styles[df.columns.get_loc('評価')] = 'background-color: rgba(244, 67, 54, 0.3)'
+                    elif judg == '買い': styles[df.columns.get_loc('評価')] = 'background-color: rgba(255, 193, 7, 0.3)'
+                    elif judg == '見送り': styles[df.columns.get_loc('評価')] = 'background-color: rgba(117, 117, 117, 0.3)'
+
+                    # Ω順・人順
+                    if isinstance(row['Ω順'], int) and row['Ω順'] <= 3:
+                        styles[df.columns.get_loc('Ω順')] = 'background-color: rgba(255, 193, 7, 0.2)'
+                    if isinstance(row['人順'], int) and row['人順'] <= 3:
+                        styles[df.columns.get_loc('人順')] = 'background-color: rgba(255, 193, 7, 0.2)'
+                        
+                    # バグ (人気とΩの乖離) - ローカル版の bg-red, bg-yellow ロジック
+                    # (簡易的に正の値が大きい場合に色付け)
+                    if row['バグ'] >= 5: styles[df.columns.get_loc('バグ')] = 'background-color: rgba(244, 67, 54, 0.3)'
+                    elif row['バグ'] >= 3: styles[df.columns.get_loc('バグ')] = 'background-color: rgba(255, 193, 7, 0.3)'
+                    
+                    # 斤量増減
+                    k_diff = row['増減']
+                    try:
+                        k_val = float(k_diff.replace('+', '')) if k_diff and k_diff != '±0' else 0
+                        if k_val <= -2.0: styles[df.columns.get_loc('増減')] = 'background-color: rgba(244, 67, 54, 0.3)' # 減量
+                        elif k_val >= 2.0: styles[df.columns.get_loc('増減')] = 'background-color: rgba(117, 117, 117, 0.3)' # 増量
+                    except: pass
+                    
+                    return styles
+
+                styled_df = df.style.apply(apply_styles, axis=1)
+
                 # 表示と編集
                 edited_df = st.data_editor(
-                    df, 
+                    styled_df, 
                     use_container_width=True, 
                     hide_index=True,
                     column_config={
@@ -237,10 +282,12 @@ else:
                     },
                     key=f"editor_{race_id}"
                 )
-                
+                  
                 # 編集内容をセッション状態に保存
                 if edited_df is not None:
-                    new_marks = {row["馬番"]: row["My印"] for _, row in edited_df.iterrows()}
+                    # edited_df が Styler の場合は .data で元のDFを取得
+                    target_df = edited_df if isinstance(edited_df, pd.DataFrame) else edited_df
+                    new_marks = {row["馬番"]: row["My印"] for _, row in target_df.iterrows()}
                     st.session_state.user_marks[race_id] = new_marks
 
             # --- その他の馬 (Other Horses) ---
