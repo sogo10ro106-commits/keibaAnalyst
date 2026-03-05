@@ -104,7 +104,7 @@ else:
         if analyze_btn:
             with st.spinner("解析中... (30〜60秒程度かかります)"):
                 try:
-                    extra_info = {"cushion": cushion}
+                    extra_info = {"cushion_value": cushion}
                     analysis = st.session_state.scraper.get_full_analysis(race_id, extra_info=extra_info)
                     st.session_state.analysis_results[race_id] = analysis
                 except Exception as e:

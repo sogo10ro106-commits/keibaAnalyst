@@ -2431,6 +2431,7 @@ class KeibaLabScraper:
                 'number': h['number'],
                 'name': h['name'],
                 'mark': h['expert_mark'],
+                'omega': h.get('omega', 0),
                 'judgment': h['performance_judgment'],
                 'reason': full_reason,
                 'score': score
@@ -2649,14 +2650,27 @@ class KeibaLabScraper:
                 sanrenpuku_msg = f"◎{top1['number']}を1頭目に、{partners_str}への三連複流し。期待回収率スコア: {confidence}"
                 betting_strategies.append({"type": "三連複/ワイド", "content": sanrenpuku_msg})
 
+        # Web版互換性のためのデータ整形
+        for h in all_data:
+            h['mark_text'] = h.get('expert_mark', '無')
+            h['reason'] = h.get('performance_summary', '')
+
+        # 買い目戦略を文字列にまとめる
+        strategy_text = ""
+        for s in betting_strategies:
+            strategy_text += f"【{s['type']}】\n{s['content']}\n\n"
+
         return {
             'race_info': {**race_info, **predicted_pace_data},
+            'pace_analysis': predicted_pace_data.get('pace_comment', '展開データなし'),
             'confidence': confidence,
             'horses': all_data,
+            'full_results': all_data, # Web版用エイリアス
             'recommendations': recommendations,
             'himo_horses': himo_horses,
             'discouraged': discouraged,
-            'betting_strategies': betting_strategies
+            'betting_strategies': betting_strategies,
+            'strategy': strategy_text.strip() # Web版用
         }
     def get_total_score_with_reasons(self, h_item, race_info, feedback_data, mark_weight, optimized_params=None):
         reasons = []
