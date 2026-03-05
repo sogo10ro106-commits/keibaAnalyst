@@ -2334,6 +2334,11 @@ class KeibaLabScraper:
             omRank = omega_ranks.get(hid, '-')
             pRank = pop_ranks.get(hid, '-')
             
+            # Web版詳細テーブル用
+            h_data['omega_rank'] = omRank
+            h_data['popularity_rank'] = pRank
+            h_data['bug_degree'] = (pRank - omRank) if isinstance(omRank, int) and isinstance(pRank, int) else 0
+
             # Ωランク上位5位に暖色(オレンジ系)のクラスを付与
             h_data['omega_class'] = 'bg-warm-orange' if isinstance(omRank, int) and omRank <= 5 else ''
             # 人気ランク上位5位に暖色(ピーチ系)のクラスを付与
