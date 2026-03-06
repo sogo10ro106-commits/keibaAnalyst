@@ -2701,7 +2701,8 @@ class KeibaLabScraper:
         high_class_match = False
         has_class_experience = False
         
-        for r in history[:10]:
+        # 直近10走だけでなく、全履歴を対象にする (GI馬などの実績漏れを防ぐ)
+        for r in history:
             r_class = r.get('race_class', '').replace('(', '').replace(')', '').replace('（', '').replace('）', '')
             r_rank = r.get('rank', 99)
             r_weight = self.GRADE_WEIGHTS.get(r_class, 0)
