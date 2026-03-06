@@ -25,6 +25,40 @@ class KeibaLabScraper:
         self.is_protected = False
         self.last_request_time = 0
         self.last_error = ""
+        self.horse_details_cache = {}
+
+    def clear_internal_cache(self):
+        """内部キャッシュ（馬詳細データなど）をクリアします。"""
+        self.horse_details_cache = {}
+
+    def _get_class_weight(self, class_str):
+        """
+        クラス名文字列から『格』の重み（数値）を返します。
+        全角・半角、ローマ数字、括弧の有無を正規化して判定します。
+        """
+        if not class_str: return 0.0
+        
+        # 正規化: 括弧、空白を除去し大文字へ
+        s = re.sub(r'[\(\)（）\s]', '', str(class_str)).upper()
+        
+        # 特殊な全角・ローマ数字を半角英数字へ変換
+        trans = str.maketrans('ＧⅠⅡⅢ１２３', 'GIII123')
+        s = s.translate(trans)
+        
+        # 部分一致で判定（G1, GI, ＧⅠ などが全て 'GI' または 'G1' を含む状態になる）
+        if 'G1' in s or 'GI' in s: return 12.0
+        if 'G2' in s or 'GII' in s: return 10.0
+        if 'G3' in s or 'GIII' in s: return 9.0
+        if 'L' in s: return 8.0
+        if 'オープン' in s or 'OP' in s: return 7.5
+        if '3勝' in s or '1600万' in s: return 6.0
+        if '2勝' in s or '1000万' in s: return 5.0
+        if '1勝' in s or '500万' in s: return 4.0
+        if '未勝利' in s: return 3.0
+        if '新馬' in s: return 3.0
+        
+        # 直接辞書からも引けるように（念のため）
+        return self.GRADE_WEIGHTS.get(s, 0.0)
 
     VENUE_CODES = {
         '01': '札幌', '02': '函館', '03': '福島', '04': '新潟',
@@ -2693,8 +2727,9 @@ class KeibaLabScraper:
             except: pass
         
         # --- クラス（格）による補正 ---
-        cur_class = race_info.get('class_name', '').replace('(', '').replace(')', '').replace('（', '').replace('）', '')
-        cur_class_weight = self.GRADE_WEIGHTS.get(cur_class, 4.0)
+        cur_class_raw = race_info.get('class_name', '')
+        cur_class_weight = self._get_class_weight(cur_class_raw)
+        if cur_class_weight == 0: cur_class_weight = 4.0 # デフォルトは1勝クラス相当
         
         # 過去に今回と同等以上のクラスでの実績を確認
         history = h_item.get('history', [])
@@ -2703,9 +2738,9 @@ class KeibaLabScraper:
         
         # 直近10走だけでなく、全履歴を対象にする (GI馬などの実績漏れを防ぐ)
         for r in history:
-            r_class = r.get('race_class', '').replace('(', '').replace(')', '').replace('（', '').replace('）', '')
+            r_class_raw = r.get('race_class', '')
             r_rank = r.get('rank', 99)
-            r_weight = self.GRADE_WEIGHTS.get(r_class, 0)
+            r_weight = self._get_class_weight(r_class_raw)
             
             if r_weight >= cur_class_weight:
                 has_class_experience = True # 出走経験あり

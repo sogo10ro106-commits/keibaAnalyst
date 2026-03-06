@@ -60,6 +60,10 @@ with m_col2:
         if st.button("🔄 キャッシュをクリア", use_container_width=True, type="secondary"):
             st.session_state.races_cache = {}
             st.session_state.analysis_results = {}
+            # スクレイパーの内部キャッシュ（馬詳細）もクリアし、インスタンスを再生成
+            if 'scraper' in st.session_state:
+                st.session_state.scraper.clear_internal_cache()
+                st.session_state.scraper = KeibaLabScraper()
             st.success("クリアしました")
             st.rerun()
     with cc_col2:
