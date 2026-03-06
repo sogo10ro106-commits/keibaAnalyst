@@ -7,10 +7,10 @@ import re
 
 # ページ設定
 st.set_page_config(
-    page_title="Keiba Lab Web (v260306_0945)",
+    page_title="競馬分析ツール (v260306_1005)",
     page_icon="🏇",
     layout="wide",
-    initial_sidebar_state="collapsed" # サイドバーをデフォルトで閉じる
+    initial_sidebar_state="collapsed"
 )
 
 # スタイル設定（ダークモード風）
@@ -46,7 +46,7 @@ def get_mark(rank):
     return marks.get(rank, "")
 
 # --- メインエリアの構成 ---
-st.title("🏇 競馬ラボ 分析ツール (Web)")
+st.title("🏇 競馬分析ツール")
 
 # 1. 日付選択とシステム管理 (最上部に配置)
 m_col1, m_col2 = st.columns([1, 2])
@@ -70,7 +70,7 @@ with m_col2:
                     st.session_state.scraper.consecutive_errors = 0
                     st.rerun()
             else:
-                st.success("✅ ス通信正常")
+                st.success("✅ 通信正常")
             st.caption(f"連続エラー: {st.session_state.scraper.consecutive_errors}")
 
 st.divider()
@@ -97,7 +97,8 @@ if not races:
     if st.session_state.scraper.is_protected:
         st.error("保護モードが作動中のため、データの取得を制限しています。「保護リセット」を試してください。")
     else:
-        st.info("該当日のレースが見つかりません。JRAの開催日（土日など）を選択してください。")
+        st.info("該当日のレースが見つかりません。JRAの開催日（土日など）を選択しているかご確認ください。")
+        st.warning("⚠️ 解決しない場合は、上の「🔄 キャッシュをクリア」を押してから、再度日付を選び直してください。")
 else:
     st.caption(f"✅ {len(races)} 件のレースを表示中")
     
