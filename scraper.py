@@ -40,7 +40,10 @@ class KeibaLabScraper:
 
     # クラス別の「格」の重み付け
     GRADE_WEIGHTS = {
-        'G1': 12.0, 'G2': 10.0, 'G3': 9.0, 'L': 8.0, 'OP': 7.5, 'オープン': 7.5,
+        'G1': 12.0, 'G2': 10.0, 'G3': 9.0, 'GI': 12.0, 'GII': 10.0, 'GIII': 9.0,
+        'GⅠ': 12.0, 'GⅡ': 10.0, 'GⅢ': 9.0,
+        'Ｇ１': 12.0, 'Ｇ２': 10.0, 'Ｇ３': 9.0, 'ＧⅠ': 12.0, 'ＧⅡ': 10.0, 'ＧⅢ': 9.0,
+        'L': 8.0, 'OP': 7.5, 'オープン': 7.5, 'J.G1': 11.0, 'J.G2': 9.0, 'J.G3': 8.0,
         '3勝クラス': 6.0, '1600万下': 6.0,
         '2勝クラス': 5.0, '1000万下': 5.0,
         '1勝クラス': 4.0, '500万下': 4.0,
@@ -548,9 +551,9 @@ class KeibaLabScraper:
         conditions = ''
         if data_header:
             header_text = data_header.get_text(strip=True)
-            class_match = re.search(r'(新馬|未勝利|1勝クラス|2勝クラス|3勝クラス|オープン|\(L\)|\(G[1-3I-III]+\))', header_text)
+            class_match = re.search(r'([\(（]?G[1-3I-V１-５Ⅰ-Ⅴ]+[\)）]?|[\(（]?Ｇ[１-３Ⅰ-Ⅲ]+[\)）]?|\(L\)|オープン|OP|1勝クラス|2勝クラス|3勝クラス|未勝利|新馬)', header_text, re.I)
             if class_match:
-                class_name = class_match.group(1)
+                class_name = class_match.group(1).replace('(', '').replace(')', '').replace('（', '').replace('）', '')
             
             cond_list = []
             if '牝' in header_text: cond_list.append('牝')
@@ -942,11 +945,11 @@ class KeibaLabScraper:
             race_name = safe_get('race', 5, data)
             # クラス名（格）の抽出
             race_class = ''
-            class_match = re.search(r'(\(G[1-3]\)|G[1-3]|\(L\)|オープン|OP|1勝クラス|2勝クラス|3勝クラス|未勝利|新馬)', race_name)
+            # G1-3, GI-III, ＧⅠ-Ⅲ などの多角的な正規表現
+            class_match = re.search(r'([\(（]?G[1-3I-V１-５Ⅰ-Ⅴ]+[\)）]?|[\(（]?Ｇ[１-３Ⅰ-Ⅲ]+[\)）]?|\(L\)|オープン|OP|3勝クラス|2勝クラス|1勝クラス|1600万下|1000万下|500万下|未勝利|新馬)', race_name, re.I)
             if class_match:
-                race_class = class_match.group(1).replace('(', '').replace(')', '')
+                race_class = class_match.group(1).replace('(', '').replace(')', '').replace('（', '').replace('）', '')
             else:
-                # 重賞以外でも「万葉S(OP)」などの形式があるため、別途検索
                 if 'オープン' in race_name or 'OP' in race_name: race_class = 'OP'
                 elif '1勝' in race_name: race_class = '1勝クラス'
                 elif '2勝' in race_name: race_class = '2勝クラス'
@@ -2690,7 +2693,7 @@ class KeibaLabScraper:
             except: pass
         
         # --- クラス（格）による補正 ---
-        cur_class = race_info.get('class_name', '')
+        cur_class = race_info.get('class_name', '').replace('(', '').replace(')', '').replace('（', '').replace('）', '')
         cur_class_weight = self.GRADE_WEIGHTS.get(cur_class, 4.0)
         
         # 過去に今回と同等以上のクラスでの実績を確認
@@ -2699,7 +2702,7 @@ class KeibaLabScraper:
         has_class_experience = False
         
         for r in history[:10]:
-            r_class = r.get('race_class', '')
+            r_class = r.get('race_class', '').replace('(', '').replace(')', '').replace('（', '').replace('）', '')
             r_rank = r.get('rank', 99)
             r_weight = self.GRADE_WEIGHTS.get(r_class, 0)
             
