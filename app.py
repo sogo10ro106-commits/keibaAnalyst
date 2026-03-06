@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import scraper as scraper_module
 from scraper import KeibaLabScraper
+import database_manager as db_module
 from database_manager import DatabaseManager
 import datetime
 import os
@@ -63,7 +64,7 @@ def get_cached_prediction(race_id, force_refresh=False, extra_info=None, race_da
 @app.route('/api/clear_cache')
 def clear_cache():
     """予測キャッシュをすべてクリアする"""
-    global scraper
+    global scraper, db
     with CACHE_LOCK:
         count = len(PREDICTION_CACHE)
         PREDICTION_CACHE.clear()
@@ -72,6 +73,8 @@ def clear_cache():
         try:
             importlib.reload(scraper_module)
             scraper = scraper_module.KeibaLabScraper()
+            importlib.reload(db_module)
+            db = db_module.DatabaseManager()
         except Exception as e:
             print(f"Hot-reload failed: {e}")
         
@@ -89,7 +92,7 @@ def clear_cache_by_date():
     if not date_str or not date_str.isdigit() or len(date_str) != 8:
         return jsonify({'error': '有効な日付 (YYYYMMDD) を指定してください'}), 400
 
-    global scraper
+    global scraper, db
     # メモリキャッシュからも該当日のデータを削除
     with CACHE_LOCK:
         mem_deleted = 0
@@ -98,10 +101,12 @@ def clear_cache_by_date():
             del PREDICTION_CACHE[k]
             mem_deleted += 1
 
-    # モジュールを強制リロードし、最新のコードでスクレイパーインスタンスを再生成する
+    # モジュールを強制リロードし、最新のコードでスクレイパーとDBマネージャーインスタンスを再生成する
     try:
         importlib.reload(scraper_module)
         scraper = scraper_module.KeibaLabScraper()
+        importlib.reload(db_module)
+        db = db_module.DatabaseManager()
     except Exception as e:
         print(f"Hot-reload failed: {e}")
 
