@@ -56,18 +56,19 @@ class KeibaLabScraper:
         '未勝利': 3.0, '新馬': 3.0
     }
 
-    def _get_soup(self, url, headers=None, timeout=15):
+    def _get_soup(self, url, headers=None, timeout=30):
         """指定されたURLを取得し、正しいエンコーディングでBeautifulSoupオブジェクトを返します。"""
         import time
         import random
+        from bs4 import BeautifulSoup
         
         if self.is_protected:
             return None
 
         # 連続アクセス制限の緩和
         now = time.time()
-        if self.last_request_time > 0 and (now - self.last_request_time) < 0.5:
-            time.sleep(random.uniform(0.3, 0.7))
+        if self.last_request_time > 0 and (now - self.last_request_time) < 1.0:
+            time.sleep(random.uniform(0.5, 1.5))
         self.last_request_time = time.time()
 
         req_headers = self.HEADERS.copy()
@@ -77,25 +78,28 @@ class KeibaLabScraper:
         if 'Referer' not in req_headers:
             req_headers['Referer'] = self.BASE_URL + "/"
             
-        max_retries = 2 # リトライ回数を削減
+        max_retries = 3
         
         for attempt in range(max_retries):
             try:
+                # 再試行時は待機時間を増やす
+                if attempt > 0:
+                    time.sleep(random.uniform(3.0, 7.0))
+                
                 response = self.session.get(url, headers=req_headers, timeout=timeout)
                 
                 if response.status_code in (403, 429):
                     self.consecutive_errors += 1
+                    self.last_error = f"Access Denied ({response.status_code})"
                     if self.consecutive_errors >= self.max_error_threshold:
                         self.is_protected = True
                     raise requests.exceptions.RequestException(f"Access denied: {response.status_code}")
-                
-                if response.status_code != 200:
-                    print(f"[警告] ステータスコード {response.status_code}: {url}")
                 
                 response.raise_for_status()
                 
                 # 成功した場合はエラーカウントをリセット
                 self.consecutive_errors = 0
+                self.last_error = ""
                 
                 content = response.content
                 detected_enc = None
