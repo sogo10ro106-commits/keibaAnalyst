@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify
+import scraper as scraper_module
 from scraper import KeibaLabScraper
 from database_manager import DatabaseManager
 import datetime
@@ -11,6 +12,7 @@ import threading
 import time
 import traceback
 import concurrent.futures
+import importlib
 
 # 結果分析プロジェクトのパスを通す
 ANALYZER_DIR = r"c:\Users\user\OneDrive\ドキュメント\testapp_antigra\keiba_result_analyzer"
@@ -61,12 +63,18 @@ def get_cached_prediction(race_id, force_refresh=False, extra_info=None, race_da
 @app.route('/api/clear_cache')
 def clear_cache():
     """予測キャッシュをすべてクリアする"""
+    global scraper
     with CACHE_LOCK:
         count = len(PREDICTION_CACHE)
         PREDICTION_CACHE.clear()
-        # スクレイパーの内部キャッシュもクリア
-        if hasattr(scraper, 'clear_internal_cache'):
-            scraper.clear_internal_cache()
+        
+        # モジュールを強制リロードし、最新のコードでスクレイパーインスタンスを再生成する
+        try:
+            importlib.reload(scraper_module)
+            scraper = scraper_module.KeibaLabScraper()
+        except Exception as e:
+            print(f"Hot-reload failed: {e}")
+        
         # DBも物理削除
         db_cleared = db.clear_cache()
         msg = f'キャッシュをクリアしました ({count}件)'
@@ -81,6 +89,7 @@ def clear_cache_by_date():
     if not date_str or not date_str.isdigit() or len(date_str) != 8:
         return jsonify({'error': '有効な日付 (YYYYMMDD) を指定してください'}), 400
 
+    global scraper
     # メモリキャッシュからも該当日のデータを削除
     with CACHE_LOCK:
         mem_deleted = 0
@@ -89,9 +98,12 @@ def clear_cache_by_date():
             del PREDICTION_CACHE[k]
             mem_deleted += 1
 
-    # スクレイパーの内部キャッシュもクリア (特定日のみの削除でも念のため全体をクリアするか、該当馬のみ特定が必要だが、全体クリアが安全)
-    if hasattr(scraper, 'clear_internal_cache'):
-        scraper.clear_internal_cache()
+    # モジュールを強制リロードし、最新のコードでスクレイパーインスタンスを再生成する
+    try:
+        importlib.reload(scraper_module)
+        scraper = scraper_module.KeibaLabScraper()
+    except Exception as e:
+        print(f"Hot-reload failed: {e}")
 
     # SQLiteキャッシュから削除
     deleted = db.clear_cache_by_date(date_str)
