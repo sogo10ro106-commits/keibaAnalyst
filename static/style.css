@@ -324,25 +324,30 @@ td.sticky-col {
     background-color: var(--bg-card);
 }
 
-/* Ensure transparent backgrounds blend with solid colors to hide scrolling content */
+/* Ensure backgrounds are opaque and text is black for readability */
 td.sticky-col.bg-red {
-    background: linear-gradient(rgba(244, 67, 54, 0.3), rgba(244, 67, 54, 0.3)), var(--bg-card);
+    background-color: #ffb3b3;
+    color: #000 !important;
 }
 
 td.sticky-col.bg-yellow {
-    background: linear-gradient(rgba(255, 193, 7, 0.3), rgba(255, 193, 7, 0.3)), var(--bg-card);
+    background-color: #ffffb3;
+    color: #000 !important;
 }
 
 td.sticky-col.bg-blue {
-    background: linear-gradient(rgba(33, 150, 243, 0.3), rgba(33, 150, 243, 0.3)), var(--bg-card);
+    background-color: #b3d9ff;
+    color: #000 !important;
 }
 
 td.sticky-col.bg-gray {
-    background: linear-gradient(rgba(117, 117, 117, 0.3), rgba(117, 117, 117, 0.3)), var(--bg-card);
+    background-color: #d3d3d3;
+    color: #000 !important;
 }
 
 td.sticky-col.bg-cyan {
-    background: linear-gradient(rgba(0, 188, 212, 0.3), rgba(0, 188, 212, 0.3)), var(--bg-card);
+    background-color: #b3ffff;
+    color: #000 !important;
 }
 
 /* Fixed sticky left positioned columns */
@@ -475,24 +480,34 @@ td.sticky-col.bg-cyan {
 }
 
 /* Colors */
-.bg-red {
-    background-color: rgba(244, 67, 54, 0.3);
+.bg-red,
+.bg-red * {
+    background-color: #ffb3b3 !important;
+    color: #000 !important;
 }
 
-.bg-yellow {
-    background-color: rgba(255, 193, 7, 0.3);
+.bg-yellow,
+.bg-yellow * {
+    background-color: #ffffb3 !important;
+    color: #000 !important;
 }
 
-.bg-blue {
-    background-color: rgba(33, 150, 243, 0.3);
+.bg-blue,
+.bg-blue * {
+    background-color: #b3d9ff !important;
+    color: #000 !important;
 }
 
-.bg-gray {
-    background-color: rgba(117, 117, 117, 0.3);
+.bg-gray,
+.bg-gray * {
+    background-color: #d3d3d3 !important;
+    color: #000 !important;
 }
 
-.bg-cyan {
-    background-color: rgba(0, 188, 212, 0.3);
+.bg-cyan,
+.bg-cyan * {
+    background-color: #b3ffff !important;
+    color: #000 !important;
 }
 
 /* Logic Cards (Recommendations, etc.) */
