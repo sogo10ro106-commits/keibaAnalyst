@@ -230,6 +230,7 @@ else:
                         "馬番・馬名": f"{num}. {h.get('name', '')}",
                         "馬番": num, # 内部処理用
                         "AI印": h.get('expert_mark', '無'),
+                        "期待値": round(h.get('total_score', 0), 1),
                         "Ω指数": h.get('omega', 0),
                         "Ω順": h.get('omega_rank', '-'),
                         "人気": h.get('popularity', '-'),

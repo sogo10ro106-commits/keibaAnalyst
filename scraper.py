@@ -2693,24 +2693,33 @@ class KeibaLabScraper:
         cur_class = race_info.get('class_name', '')
         cur_class_weight = self.GRADE_WEIGHTS.get(cur_class, 4.0)
         
-        # 過去に今回と同等以上のクラスで掲示板(5着以内)の実績があるか
+        # 過去に今回と同等以上のクラスでの実績を確認
         history = h_item.get('history', [])
         high_class_match = False
+        has_class_experience = False
+        
         for r in history[:10]:
             r_class = r.get('race_class', '')
             r_rank = r.get('rank', 99)
-            if self.GRADE_WEIGHTS.get(r_class, 0) >= cur_class_weight and r_rank <= 5:
-                high_class_match = True
-                break
+            r_weight = self.GRADE_WEIGHTS.get(r_class, 0)
+            
+            if r_weight >= cur_class_weight:
+                has_class_experience = True # 出走経験あり
+                if r_rank <= 5:
+                    high_class_match = True # 掲示板実績あり
+                    break
         
         if high_class_match:
             adj += 5
             reasons.append(f"同クラス以上実績あり(+5)")
         else:
-            # 格上挑戦（過去にこのクラスでの掲示板実績なし）
+            # 格上挑戦または実績不足
             if cur_class_weight >= 6.0: # 3勝クラス以上
                 adj -= 3
-                reasons.append(f"上位クラス初挑戦・実績不足(-3)")
+                if has_class_experience:
+                    reasons.append(f"上位クラス実績不足(-3)")
+                else:
+                    reasons.append(f"上位クラス初挑戦・実績不足(-3)")
         
         # --- 芝/ダート適性の整合性チェック（予想ロジックへの反映） ---
         cur_surface = race_info.get('surface', '')
