@@ -38,17 +38,23 @@ class KeibaLabScraper:
         """
         if not class_str: return 0.0
         
-        # 正規化: 括弧、空白を除去し大文字へ
-        s = re.sub(r'[\(\)（）\s]', '', str(class_str)).upper()
+        # 1. 大文字化と基本記号の除去
+        s = str(class_str).upper()
+        s = re.sub(r'[\(\)（）\s\.\[\]]', '', s)
         
-        # 特殊な全角・ローマ数字を半角英数字へ変換
-        trans = str.maketrans('ＧⅠⅡⅢ１２３', 'GIII123')
-        s = s.translate(trans)
+        # 2. 特殊文字の置換（1対1のtranslateではなく、確実に置換）
+        # 全角G -> G
+        s = s.replace('Ｇ', 'G')
+        # ローマ数字 -> 算用数字 (単一文字のローマ数字も。複数文字の'III'等も)
+        s = s.replace('Ⅲ', '3').replace('Ⅱ', '2').replace('Ⅰ', '1')
+        s = s.replace('III', '3').replace('II', '2').replace('I', '1')
+        # 漢字数字の対応（一撃などの誤判定を防ぐため慎重に。クラス名に含まれるものに限定）
+        s = s.translate(str.maketrans('１２３４５', '12345'))
         
-        # 部分一致で判定（G1, GI, ＧⅠ などが全て 'GI' または 'G1' を含む状態になる）
-        if 'G1' in s or 'GI' in s: return 12.0
-        if 'G2' in s or 'GII' in s: return 10.0
-        if 'G3' in s or 'GIII' in s: return 9.0
+        # 3. 判定 (上位から)
+        if 'G1' in s: return 12.0
+        if 'G2' in s: return 10.0
+        if 'G3' in s: return 9.0
         if 'L' in s: return 8.0
         if 'オープン' in s or 'OP' in s: return 7.5
         if '3勝' in s or '1600万' in s: return 6.0
