@@ -55,46 +55,37 @@ class KeibaLabScraper:
         '未勝利': 3.0, '新馬': 3.0
     }
 
-    def _get_soup(self, url, headers=None):
-        """指定されたURLを取得し、正しいエンコーディングでBeautifulSoupオブジェクトを返します。
-           リトライロジック（最大3回）、Session維持、タイムアウト延長を導入。
-           Safety Guard: 連続エラー検知による自動停止とアクセスペーシング。
-        """
+    def _get_soup(self, url, headers=None, timeout=15):
+        """指定されたURLを取得し、正しいエンコーディングでBeautifulSoupオブジェクトを返します。"""
         import time
         import random
         
         if self.is_protected:
-            print(f"[保護] サーキットブレーカー作動中のため、取得をスキップしました: {url}")
             return None
 
-        # アクセスペーシング: 連続アクセスを避けるためにランダムな待機時間を挿入
+        # 連続アクセス制限の緩和
         now = time.time()
-        elapsed = now - self.last_request_time
-        if elapsed < 1.0: # 最低1秒は空ける
-            wait = random.uniform(0.5, 1.5)
-            time.sleep(wait)
+        if self.last_request_time > 0 and (now - self.last_request_time) < 0.5:
+            time.sleep(random.uniform(0.3, 0.7))
         self.last_request_time = time.time()
 
         req_headers = self.HEADERS.copy()
         if headers:
             req_headers.update(headers)
         
-        # 動的なリファラ設定
         if 'Referer' not in req_headers:
             req_headers['Referer'] = self.BASE_URL + "/"
             
-        max_retries = 3
+        max_retries = 2 # リトライ回数を削減
         
         for attempt in range(max_retries):
             try:
-                response = self.session.get(url, headers=req_headers, timeout=25)
+                response = self.session.get(url, headers=req_headers, timeout=timeout)
                 
-                if response.status_code == 403 or response.status_code == 429:
-                    print(f"[警告] アクセス制限検知 (Status: {response.status_code}): {url}")
+                if response.status_code in (403, 429):
                     self.consecutive_errors += 1
                     if self.consecutive_errors >= self.max_error_threshold:
                         self.is_protected = True
-                        print("[重大] 連続エラーが規定値を超えました。保護モードに移行します。")
                     raise requests.exceptions.RequestException(f"Access denied: {response.status_code}")
                 
                 if response.status_code != 200:
@@ -109,21 +100,21 @@ class KeibaLabScraper:
                 detected_enc = None
                 
                 # エンコーディング判定
-                meta_charset = re.search(b'charset=["\']?([a-zA-Z0-9_-]+)', content[:2000], re.I)
+                detected_enc = None
+                meta_charset = re.search(b'charset=["\']?([a-zA-Z0-9_-]+)', content[:3000], re.I)
                 if meta_charset:
                     try:
                         detected_enc = meta_charset.group(1).decode('ascii').lower()
-                        if detected_enc == 'shift_jis': detected_enc = 'cp932'
                     except: pass
                 
                 if not detected_enc:
-                    for enc in ['utf-8', 'cp932', 'euc-jp']:
+                    # UTF-8を最優先、次に日本語エンコーディング
+                    for enc in ['utf-8', 'euc-jp', 'cp932']:
                         try:
                             content.decode(enc)
                             detected_enc = enc
                             break
-                        except (AttributeError, UnicodeDecodeError):
-                            continue
+                        except: continue
                 
                 if not detected_enc:
                     detected_enc = response.apparent_encoding
@@ -162,11 +153,12 @@ class KeibaLabScraper:
         
         races = []
         try:
-            race_links = soup.find_all('a', href=re.compile(r"/db/race/\d{10,}/"))
+            # 10~12桁の数字を含むリンク（末尾スラッシュは任意）を抽出
+            race_links = soup.find_all('a', href=re.compile(r"/db/race/\d{10,}/?"))
             race_data_map = {}
             
             for link in race_links:
-                rid_match = re.search(r"/db/race/(\d{10,})/", link['href'])
+                rid_match = re.search(r"/db/race/(\d{10,})/?", link['href'])
                 if not rid_match: continue
                 rid = str(rid_match.group(1))
                 
@@ -178,6 +170,8 @@ class KeibaLabScraper:
                 text = link.get_text(strip=True)
                 venue = self.get_venue_from_id(rid)
                 race_num = rid[-2:].lstrip('0')
+                
+                # ... (表面・距離の抽出はそのまま)
                 
                 race_class = ""
                 surface = ""
@@ -2529,56 +2523,73 @@ class KeibaLabScraper:
         himo_ids = {h['number'] for h in himo_horses}
         excluded_ids_nums = rec_ids | himo_ids
         
+        # --- 精緻な理由付けとスコア付与 ---
         for h in all_data:
             # 各馬に対して具体的で詳細な「理由」を生成
             score, auto_reasons = self.get_total_score_with_reasons(h, race_info, feedback_data, mark_weight, optimized_params)
             h['detailed_reason'] = " / ".join(auto_reasons) if auto_reasons else h.get('performance_summary', '条件見合いで静観')
+            h['score'] = score
+
+        # 軸馬とヒモ馬にスコアを反映
+        for h in recommendations:
+            h['score'] = next((item['score'] for item in all_data if item['number'] == h['number']), 0)
+        for h in himo_horses:
+            h['score'] = next((item['score'] for item in all_data if item['number'] == h['number']), 0)
 
         # --- 激走期待馬 (軸3頭 + ヒモ5頭) 以外の「その他の馬」を抽出 ---
         selected_numbers = {h['number'] for h in (recommendations + himo_horses)}
         other_candidates = [h for h in all_data if h['number'] not in selected_numbers]
-        # スコア順にソート
-        other_candidates.sort(key=lambda x: self.get_total_score_with_reasons(x, race_info, feedback_data, mark_weight, optimized_params)[0], reverse=True)
+        # スコア順にソート (既に all_data 側で計算済み)
+        other_candidates.sort(key=lambda x: x.get('score', 0), reverse=True)
         
         other_horses_list = []
         for h in other_candidates:
-            score, _ = self.get_total_score_with_reasons(h, race_info, feedback_data, mark_weight, optimized_params)
             other_horses_list.append({
                 'number': h['number'],
                 'name': h['name'],
                 'reason': h['detailed_reason'],
-                'score': score
+                'score': h.get('score', 0)
             })
 
         # --- 消し馬（激走リスクの極めて低い馬を3頭厳選） ---
-        # スコアが低い順、かつ特定の消し条件に合致する馬
         discouraged = []
         # スコア逆順（低い順）にチェック
         for h in reversed(other_candidates):
             if len(discouraged) >= 3: break
             
-            p_score = h.get('total_score', 0)
+            p_score = h.get('score', 0)
             last_run = h.get('last_run', {})
             last_rank = last_run.get('rank')
             try: last_rank = int(last_rank) if last_rank is not None else 99
             except: last_rank = 99
             
             # 消し判定を具体化するためのネガティブ要素抽出
-            neg_reasons = [r for r in h['detailed_reason'].split(' / ') if '(-' in r]
+            # 「(-」を含む、または明らかにマイナスなワードを優先抽出
+            all_r = h['detailed_reason'].split(' / ')
+            neg_reasons = [r for r in all_r if '(-' in r or '不安' in r or '不足' in r or '大敗' in r or '劣る' in r]
             
             # 消し馬としてふさわしいか判定（実績不足、大敗、適性不安など）
-            is_weak = p_score < 2.0 or last_rank >= 10
+            is_weak = p_score < 4.0 or last_rank >= 10
             if is_weak:
                 # 理由をさらに具体的に構築
-                specific_neg = " / ".join([re.sub(r'\(.*?\)', '', r).strip() for r in neg_reasons[:2]])
-                base_neg = f"前走{last_rank}着と精彩欠く" if last_rank >= 10 else "強調材料に乏しい"
-                final_neg = f"{base_neg} ({specific_neg})" if specific_neg else base_neg
+                specific_neg = " / ".join([re.sub(r'\(.*?\)', '', r).strip() for r in neg_reasons[:3]])
+                
+                # 前走着順以外のネガティブ要素があれば優先
+                if specific_neg:
+                    final_neg = f"{specific_neg}により期待薄"
+                else:
+                    base_neg = f"前走{last_rank}着と精彩欠く" if last_rank >= 10 else "強調材料に乏しく、現条件では厳しい"
+                    final_neg = base_neg
+                
+                # ユーザー要望に基づき、より「具体的」な記述を追加
+                if p_score < -5:
+                    final_neg = "極めて評価が低く、馬券圏内は極めて困難。 " + final_neg
                 
                 discouraged.append({
                     'number': h['number'],
                     'name': h['name'],
                     'reason': final_neg,
-                    'score': h.get('score', 0)
+                    'score': p_score
                 })
         
         # もし3頭に満たない場合は、スコア最下位から補充
@@ -2586,11 +2597,12 @@ class KeibaLabScraper:
             for h in reversed(other_candidates):
                 if len(discouraged) >= 3: break
                 if any(d['number'] == h['number'] for d in discouraged): continue
+                p_score = h.get('score', 0)
                 discouraged.append({
                     'number': h['number'],
                     'name': h['name'],
-                    'reason': "実績面・条件面で他馬に劣り静観妥当",
-                    'score': 0
+                    'reason': "実績面・条件面で他馬に劣り静観妥当（上位との指数差大）",
+                    'score': p_score
                 })
 
         # ---------------------------------------------------------
@@ -2627,6 +2639,7 @@ class KeibaLabScraper:
 
         return {
             'race_info': {**race_info, **predicted_pace_data},
+            'race_url': f"https://www.keibalab.jp/db/race/{race_id}/",
             'pace_analysis': predicted_pace_data.get('pace_comment', '展開データなし'),
             'confidence': confidence,
             'horses': all_data,
