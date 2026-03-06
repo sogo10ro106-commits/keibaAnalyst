@@ -72,6 +72,8 @@ with m_col2:
             else:
                 st.success("✅ 通信正常")
             st.caption(f"連続エラー: {st.session_state.scraper.consecutive_errors}")
+            if st.session_state.scraper.last_error:
+                st.caption(f"最新エラー: :red[{st.session_state.scraper.last_error}]")
 
 st.divider()
 

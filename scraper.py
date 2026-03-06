@@ -33,6 +33,7 @@ class KeibaLabScraper:
         self.max_error_threshold = 10
         self.is_protected = False
         self.last_request_time = 0
+        self.last_error = ""
 
     VENUE_CODES = {
         '01': '札幌', '02': '函館', '03': '福島', '04': '新潟',
@@ -124,20 +125,26 @@ class KeibaLabScraper:
 
             except (requests.exceptions.RequestException) as e:
                 self.consecutive_errors += 1
+                self.last_error = f"{type(e).__name__}: {str(e)}"
+                if hasattr(e, 'response') and e.response is not None:
+                    self.last_error += f" (Status: {e.response.status_code})"
+                
                 if self.consecutive_errors >= self.max_error_threshold:
                     self.is_protected = True
-                    print("[重大] 連続エラーが規定値を超えました。保護モードに移行します。")
+                    print(f"[重大] 連続エラー({self.consecutive_errors})が規定値を超えました。保護モードに移行します。")
                 
                 if attempt < max_retries - 1 and not self.is_protected:
                     # 指数バックオフ + ランダムジッター
-                    wait_time = (2 ** attempt) * 2 + random.uniform(1.0, 3.0)
-                    print(f"[再試行 {attempt+1}/{max_retries}] {url} の取得に失敗しました ({type(e).__name__}: {e})。{wait_time:.1f}秒後に再試行します...")
+                    wait_time = (2 ** attempt) * 2 + random.uniform(2.0, 5.0)
+                    print(f"[再試行 {attempt+1}/{max_retries}] {url} の取得に失敗しました ({self.last_error})。{wait_time:.1f}秒後に再試行します...")
                     time.sleep(wait_time)
                 else:
-                    print(f"[エラー] {url} の取得に最終的に失敗しました: {e}")
+                    print(f"[エラー] {url} の取得に最終的に失敗しました: {self.last_error}")
                     return None
             except Exception as e:
-                print(f"[エラー] {url} の取得中に予期せぬエラーが発生しました: {e}")
+                self.last_error = f"Unexpected {type(e).__name__}: {str(e)}"
+                print(f"[エラー] {url} の取得中に予期せぬエラーが発生しました: {self.last_error}")
+                return None
                 return None
 
     def get_venue_from_id(self, race_id):
